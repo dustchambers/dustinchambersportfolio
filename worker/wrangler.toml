@@ -5,3 +5,7 @@ compatibility_date = "2024-01-01"
 [[kv_namespaces]]
 binding = "GALLERY_KV"
 id = "6f32ef21481e4fc890af958c86f2070c"
+
+[[r2_buckets]]
+binding = "GALLERY_IMAGES"
+bucket_name = "dustinchambersportfolio-gallery-images"

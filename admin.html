@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery Admin | Dustin Chambers Photography</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --panel: #242424;
+    --border: #3a3a3a;
+    --text: #e8e4df;
+    --text-dim: #9a9690;
+    --accent: #c0392b;
+    --accent-hover: #a83224;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 2rem 2rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+  }
+  .sub {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  .row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  select, input[type=text], input[type=password] {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+  }
+  select { min-width: 200px; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button.secondary:hover { border-color: var(--text-dim); background: transparent; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: var(--text-dim);
+    margin-bottom: 2rem;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+  #dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(192, 57, 43, 0.08);
+    color: var(--text);
+  }
+  #dropzone.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .tile {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .tile .del {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.65);
+    color: white;
+    border: none;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tile:hover .del { opacity: 1; }
+  .tile.uploading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+  }
+  .tile .pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.55);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  #status {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    min-height: 1.2em;
+  }
+  #status.error { color: #e07a6f; }
+
+  .empty {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    padding: 1rem 0;
+  }
+
+  #unlock {
+    max-width: 360px;
+    margin: 4rem auto;
+    text-align: center;
+  }
+  #unlock input { width: 100%; margin-bottom: 0.75rem; }
+  #unlock button { width: 100%; }
+</style>
+</head>
+<body>
+
+<div id="unlock">
+  <h1>Gallery Admin</h1>
+  <p class="sub">Enter the editor key to continue.</p>
+  <input type="password" id="secretInput" placeholder="Editor key" autocomplete="off">
+  <button id="unlockBtn">Unlock</button>
+  <div id="unlockStatus" class="sub"></div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>Gallery Admin</h1>
+    <div class="sub">Add or remove photos from a gallery. Drag files in, or click a photo's × to remove it.</div>
+  </header>
+  <main>
+    <div class="row">
+      <select id="gallerySelect"></select>
+      <span class="sub">or</span>
+      <input type="text" id="newSlug" placeholder="new-gallery-slug">
+      <button id="newGalleryBtn" class="secondary">Create</button>
+    </div>
+
+    <div id="dropzone">
+      Drag photos here, or click to choose files
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+    </div>
+
+    <div id="grid"></div>
+    <div id="status"></div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var WORKER_URL = "https://dustinchambersportfolio-gallery.dustintchambers.workers.dev";
+  var PAGES_BASE = "https://dustchambers.github.io/dustinchambersportfolio";
+  var secret = null;
+  var currentSlug = null;
+
+  // ── Unlock ──
+  var unlockEl = document.getElementById("unlock");
+  var appEl = document.getElementById("app");
+  var secretInput = document.getElementById("secretInput");
+
+  var savedSecret = sessionStorage.getItem("dcp_admin_secret");
+  if (savedSecret) tryUnlock(savedSecret);
+
+  document.getElementById("unlockBtn").onclick = function () {
+    tryUnlock(secretInput.value.trim());
+  };
+  secretInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") tryUnlock(secretInput.value.trim());
+  });
+
+  function tryUnlock(value) {
+    if (!value) return;
+    secret = value;
+    // Verify by attempting a harmless authenticated call (upload with no body will 400,
+    // not 401, if the key is right — but simplest is to just try listing galleries,
+    // which needs no auth, then verify the key on first real write and bail out clearly
+    // if it's wrong).
+    secret = value;
+    sessionStorage.setItem("dcp_admin_secret", value);
+    unlockEl.style.display = "none";
+    appEl.style.display = "block";
+    loadGalleryList();
+  }
+
+  // ── Gallery list ──
+  var gallerySelect = document.getElementById("gallerySelect");
+
+  function loadGalleryList() {
+    fetch(WORKER_URL + "/_galleries")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        gallerySelect.innerHTML = "";
+        (data.galleries || []).sort().forEach(function (slug) {
+          var opt = document.createElement("option");
+          opt.value = slug;
+          opt.textContent = slug;
+          gallerySelect.appendChild(opt);
+        });
+        if (data.galleries && data.galleries.length) {
+          selectGallery(gallerySelect.value);
+        }
+      });
+  }
+
+  gallerySelect.onchange = function () {
+    selectGallery(gallerySelect.value);
+  };
+
+  document.getElementById("newGalleryBtn").onclick = function () {
+    var slug = document.getElementById("newSlug").value.trim()
+      .toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!slug) return;
+    currentSlug = slug;
+    document.getElementById("newSlug").value = "";
+    setStatus('Ready — drop photos in to create "' + slug + '"');
+    renderGrid([]);
+    // It'll appear in the dropdown once it has at least one image uploaded.
+  };
+
+  function selectGallery(slug) {
+    currentSlug = slug;
+    if (!slug) { renderGrid([]); return; }
+    setStatus("Loading...");
+    fetch(WORKER_URL + "/" + encodeURIComponent(slug))
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        renderGrid(cfg.images || []);
+        setStatus(cfg.images.length + " photo" + (cfg.images.length === 1 ? "" : "s"));
+      })
+      .catch(function () { setStatus("Failed to load gallery", true); });
+  }
+
+  // ── Grid ──
+  var gridEl = document.getElementById("grid");
+
+  function renderGrid(images) {
+    gridEl.innerHTML = "";
+    if (!images.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No photos yet — drag some in below.";
+      gridEl.appendChild(empty);
+      return;
+    }
+    images.forEach(function (img) {
+      gridEl.appendChild(makeTile(img));
+    });
+  }
+
+  function makeTile(img) {
+    var tile = document.createElement("div");
+    tile.className = "tile";
+    tile.dataset.id = img.id;
+
+    var imgEl = document.createElement("img");
+    imgEl.src = img.src;
+    imgEl.alt = img.alt || "";
+    tile.appendChild(imgEl);
+
+    var del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "×";
+    del.title = "Remove";
+    del.onclick = function (e) {
+      e.stopPropagation();
+      deleteImage(img.id, tile);
+    };
+    tile.appendChild(del);
+
+    return tile;
+  }
+
+  function deleteImage(imageId, tileEl) {
+    if (!currentSlug) return;
+    if (!confirm("Remove this photo from the gallery?")) return;
+    tileEl.style.opacity = "0.4";
+    fetch(WORKER_URL + "/" + encodeURIComponent(currentSlug) + "/images/" + encodeURIComponent(imageId), {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + secret },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        tileEl.remove();
+        setStatus("Removed.");
+      })
+      .catch(function () {
+        tileEl.style.opacity = "1";
+        setStatus("Failed to remove photo — check your editor key.", true);
+      });
+  }
+
+  // ── Upload ──
+  var dropzone = document.getElementById("dropzone");
+  var fileInput = document.getElementById("fileInput");
+
+  dropzone.onclick = function () { fileInput.click(); };
+  fileInput.onchange = function () {
+    handleFiles(fileInput.files);
+    fileInput.value = "";
+  };
+
+  ["dragenter", "dragover"].forEach(function (evt) {
+    dropzone.addEventListener(evt, function (e) {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach(function (evt) {
+    dropzone.addEventListener(evt, function (e) {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+    });
+  });
+  dropzone.addEventListener("drop", function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  });
+
+  function handleFiles(fileList) {
+    if (!currentSlug) {
+      setStatus("Pick or create a gallery first.", true);
+      return;
+    }
+    var files = Array.prototype.filter.call(fileList, function (f) {
+      return /^image\//.test(f.type);
+    });
+    if (!files.length) return;
+
+    setStatus("Uploading " + files.length + " photo" + (files.length === 1 ? "" : "s") + "...");
+
+    var uploaded = 0;
+    var failed = 0;
+
+    files.forEach(function (file) {
+      uploadOne(file, function (ok) {
+        ok ? uploaded++ : failed++;
+        if (uploaded + failed === files.length) {
+          setStatus(
+            uploaded + " uploaded" + (failed ? ", " + failed + " failed" : "") + ".",
+            failed > 0
+          );
+          selectGallery(currentSlug);
+          loadGalleryList();
+        }
+      });
+    });
+  }
+
+  function uploadOne(file, done) {
+    var placeholder = document.createElement("div");
+    placeholder.className = "tile uploading";
+    var pct = document.createElement("div");
+    pct.className = "pct";
+    pct.textContent = "0%";
+    placeholder.appendChild(pct);
+    gridEl.appendChild(placeholder);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", WORKER_URL + "/" + encodeURIComponent(currentSlug) + "/upload");
+    xhr.setRequestHeader("Authorization", "Bearer " + secret);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) {
+        pct.textContent = Math.round((e.loaded / e.total) * 100) + "%";
+      }
+    };
+    xhr.onload = function () {
+      placeholder.remove();
+      if (xhr.status === 401) {
+        setStatus("Wrong editor key — locking.", true);
+        sessionStorage.removeItem("dcp_admin_secret");
+        appEl.style.display = "none";
+        unlockEl.style.display = "block";
+        done(false);
+        return;
+      }
+      done(xhr.status >= 200 && xhr.status < 300);
+    };
+    xhr.onerror = function () {
+      placeholder.remove();
+      done(false);
+    };
+    xhr.send(file);
+  }
+
+  function setStatus(msg, isError) {
+    var el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = isError ? "error" : "";
+  }
+})();
+</script>
+</body>
+</html>
