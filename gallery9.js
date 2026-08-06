@@ -467,9 +467,9 @@
     var cols = 18;
     // Read the computed gap from the CSS custom property --s
     var gap = parseFloat(getComputedStyle(grid).getPropertyValue("gap")) || 16;
-    // CSS formula: calc((min(100vw,1400px) - 19 * var(--s)) / 18)
-    // 19 gaps = left padding + 17 internal gutters + right padding
-    var colWidth = (rect.width - gap * (cols + 1)) / cols;
+    // CSS formula: calc((min(100vw,1400px) - 17 * var(--s)) / 18)
+    // 17 gaps = internal gutters only — grid runs edge-to-edge, no outer padding
+    var colWidth = (rect.width - gap * (cols - 1)) / cols;
     return { colWidth: colWidth, rowHeight: colWidth, gap: gap, rect: rect };
   }
 
@@ -1980,10 +1980,10 @@
   // Convert clientX/Y to 1-based grid col/row.
   // getBoundingClientRect() is viewport-relative; clientX/Y are also viewport-relative,
   // so (clientX - rect.left) gives the correct pixel offset regardless of scroll position.
-  // We subtract one gap for the grid's left padding (padding: 0 var(--s)).
+  // Grid has no outer padding (edge-to-edge), so no offset needed beyond rect.left.
   function clientToGridCell(clientX, clientY) {
     var m = getGridMetrics();
-    var x = clientX - m.rect.left - m.gap; // subtract left padding
+    var x = clientX - m.rect.left;
     var y = clientY - m.rect.top;
 
     var cellStep = m.colWidth + m.gap;
