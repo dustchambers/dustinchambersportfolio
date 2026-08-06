@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-06 (2)
+
+- Removed the outer padding around the gallery grid (`.gallery`'s side/bottom padding, plus a 12px top padding used only in embedded/iframe view) — it was showing as a visible cream-colored margin around the whole gallery frame. Grid now runs edge-to-edge.
+- That padding was baked into the square-cell sizing math in four places: the CSS row-height formula, the edit-mode grid-overlay background size, and two JS functions (`getGridMetrics`'s colWidth calc, and `clientToGridCell`, which explicitly subtracted a gap for the old left padding). Updated all four to match — verified `?gedit` drag/drop still lands exactly where dropped.
+- Second push in a row where the Actions deploy didn't auto-trigger on `git push` — same one-off miss as before, not a config issue (manual `gh workflow run "Deploy Pages"` unblocked it both times). Worth a closer look if it becomes a pattern rather than an occasional miss.
+- Rewrote `README.md` to be a short, minimal step list. Moved the full embed `<script>`/`<iframe>` snippet out into its own `embed-template.html` file so the README doesn't have ~80 lines of code in the middle of it.
+- Added a standing instruction (saved to memory) to log every action taken in a project's `CHANGELOG.md`, not just narrate it in chat.
+
 ## 2026-08-06
 
 - Created this repo (`dustinchambersportfolio`) as a standalone project, separate from `lot43imagegallery` — no shared Webflow CMS, Worker, or KV with the Lot43 client work.
