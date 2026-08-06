@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-06 (3)
+
+- User reported margin still visible on `dustinchambersphoto.com/soma` after the outer-padding fix. Root cause was different from what I'd fixed: not CSS, but a saved KV layout row (`soma-1` + `soma-19`, plus an orphaned 3-col spacer) sized to only span columns 1–15 of the 18-column grid, leaving 3 empty columns on the right and a spacer-shaped gap on the left. Likely left over from an earlier `?gedit` session. Rebuilt the layout from the merged config with that row corrected to a proper 9+9 full-width split (matching the pattern already used elsewhere in the same gallery) and the spacer dropped. Confirmed fixed live.
+- `wrangler kv key get` 401'd against the real namespace (the OAuth token appears to have `workers_kv` write-only, no read) — list/delete/put all still work. Worked around it by using the Worker's own merged GET response as the source of truth instead of trying to read the raw KV value directly.
+- Noticed while investigating: only 34 of the original 39 `soma-*` images are present in the current layout (`soma-10`, `-12`, `-20`, `-21`, `-37` missing) — most likely removed intentionally via admin.html's delete button, not a bug, but flagging since it wasn't something I removed.
+
 ## 2026-08-06 (2)
 
 - Removed the outer padding around the gallery grid (`.gallery`'s side/bottom padding, plus a 12px top padding used only in embedded/iframe view) — it was showing as a visible cream-colored margin around the whole gallery frame. Grid now runs edge-to-edge.
