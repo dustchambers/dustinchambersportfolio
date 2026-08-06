@@ -31,7 +31,7 @@ body.embedded .footer {
 }
 
 body.embedded .gallery {
-  padding-top: 0;
+  padding-top: 12px;
 }
 
 /* ── Gallery Header ── */
@@ -59,9 +59,9 @@ body.embedded .gallery {
 }
 
 /* ── Unified Spacing Token ── */
-/* --s drives gap and the row-height formula simultaneously.
-   Formula: (max-viewport - (cols-1)×gap) / cols  →  square cells.
-   For 18 cols that's 17 internal gutters (no outer padding, edge-to-edge). */
+/* --s drives gap, side margins, and the row-height formula simultaneously.
+   Formula: (max-viewport - (cols+1)×gap) / cols  →  square cells.
+   For 18 cols that's 19 gaps (left margin + 17 gutters + right margin). */
 :root {
   --s: clamp(10px, 1.6vw, 20px);
 }
@@ -70,12 +70,12 @@ body.embedded .gallery {
 .gallery {
   display: grid;
   grid-template-columns: repeat(18, 1fr);
-  /* Each cell is square: full width minus 17 internal gutters, divided by 18 columns */
-  grid-auto-rows: calc((min(100vw, 1400px) - 17 * var(--s)) / 18);
+  /* Each cell is square: full width minus 19 gaps, divided by 18 columns */
+  grid-auto-rows: calc((min(100vw, 1400px) - 19 * var(--s)) / 18);
   /* No dense packing — items stay in source order, gaps remain as gaps */
   grid-auto-flow: row;
   gap: var(--s);
-  padding: 0;
+  padding: 0 var(--s) var(--s);
   max-width: 1400px;
   margin: 0 auto;
   position: relative; /* needed for absolute-positioned drop preview */
@@ -88,8 +88,8 @@ body.edit-mode .gallery {
     linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
   /* Tile size = one cell + one gap, matching the 18-col formula */
   background-size:
-    calc((min(100vw, 1400px) - 17 * var(--s)) / 18 + var(--s))
-    calc((min(100vw, 1400px) - 17 * var(--s)) / 18 + var(--s));
+    calc((min(100vw, 1400px) - 19 * var(--s)) / 18 + var(--s))
+    calc((min(100vw, 1400px) - 19 * var(--s)) / 18 + var(--s));
   background-position: -1px -1px;
 }
 
@@ -105,8 +105,8 @@ body.dragging .gallery {
     linear-gradient(to right, rgba(0,0,0,0.10) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(0,0,0,0.10) 1px, transparent 1px);
   background-size:
-    calc((min(100vw, 1400px) - 17 * var(--s)) / 18 + var(--s))
-    calc((min(100vw, 1400px) - 17 * var(--s)) / 18 + var(--s));
+    calc((min(100vw, 1400px) - 19 * var(--s)) / 18 + var(--s))
+    calc((min(100vw, 1400px) - 19 * var(--s)) / 18 + var(--s));
   background-position: -1px -1px;
 }
 
