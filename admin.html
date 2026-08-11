@@ -134,6 +134,7 @@
   .tile:hover .del { opacity: 1; }
   .tile {
     cursor: pointer;
+    user-select: none;
   }
   .tile.selected {
     outline: 3px solid var(--accent);
@@ -348,10 +349,12 @@
   // ── Grid ──
   var gridEl = document.getElementById("grid");
   var selectedIds = new Set();
+  var lastClickedId = null; // anchor for shift-click range selection
 
   function renderGrid(images) {
     gridEl.innerHTML = "";
     selectedIds.clear();
+    lastClickedId = null;
     updateSelectionBar();
     if (!images.length) {
       var empty = document.createElement("div");
@@ -389,11 +392,35 @@
     };
     tile.appendChild(del);
 
-    tile.onclick = function () {
-      toggleSelect(img.id, tile);
+    tile.onclick = function (e) {
+      if (e.shiftKey && lastClickedId) {
+        selectRange(lastClickedId, img.id);
+      } else {
+        toggleSelect(img.id, tile);
+        lastClickedId = img.id;
+      }
     };
 
     return tile;
+  }
+
+  function selectRange(fromId, toId) {
+    var tiles = Array.prototype.filter.call(gridEl.children, function (t) {
+      return t.classList.contains("tile");
+    });
+    var ids = tiles.map(function (t) { return t.dataset.id; });
+    var i1 = ids.indexOf(fromId);
+    var i2 = ids.indexOf(toId);
+    if (i1 === -1 || i2 === -1) return;
+    var start = Math.min(i1, i2), end = Math.max(i1, i2);
+    for (var i = start; i <= end; i++) {
+      if (!selectedIds.has(ids[i])) {
+        selectedIds.add(ids[i]);
+        tiles[i].classList.add("selected");
+      }
+    }
+    lastClickedId = toId;
+    updateSelectionBar();
   }
 
   function toggleSelect(imageId, tileEl) {
