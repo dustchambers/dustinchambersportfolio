@@ -132,6 +132,54 @@
     transition: opacity 0.15s;
   }
   .tile:hover .del { opacity: 1; }
+  .tile {
+    cursor: pointer;
+  }
+  .tile.selected {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+  }
+  .tile .check {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.5);
+    border: 2px solid rgba(255,255,255,0.85);
+    box-sizing: border-box;
+  }
+  .tile.selected .check {
+    background: var(--accent);
+    border-color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tile.selected .check::after {
+    content: "✓";
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  #selection-bar {
+    display: none;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    margin-bottom: 1rem;
+  }
+  #selection-bar.visible { display: flex; }
+  #selection-bar .count {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-right: auto;
+  }
   .tile.uploading::after {
     content: "";
     position: absolute;
@@ -200,6 +248,12 @@
     <div id="dropzone">
       Drag photos here, or click to choose files
       <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+    </div>
+
+    <div id="selection-bar">
+      <span class="count" id="selection-count">0 selected</span>
+      <button id="clear-selection-btn" class="secondary">Clear</button>
+      <button id="delete-selected-btn">Delete Selected</button>
     </div>
 
     <div id="grid"></div>
@@ -293,9 +347,12 @@
 
   // ── Grid ──
   var gridEl = document.getElementById("grid");
+  var selectedIds = new Set();
 
   function renderGrid(images) {
     gridEl.innerHTML = "";
+    selectedIds.clear();
+    updateSelectionBar();
     if (!images.length) {
       var empty = document.createElement("div");
       empty.className = "empty";
@@ -318,6 +375,10 @@
     imgEl.alt = img.alt || "";
     tile.appendChild(imgEl);
 
+    var check = document.createElement("div");
+    check.className = "check";
+    tile.appendChild(check);
+
     var del = document.createElement("button");
     del.className = "del";
     del.textContent = "×";
@@ -328,25 +389,96 @@
     };
     tile.appendChild(del);
 
+    tile.onclick = function () {
+      toggleSelect(img.id, tile);
+    };
+
     return tile;
   }
+
+  function toggleSelect(imageId, tileEl) {
+    if (selectedIds.has(imageId)) {
+      selectedIds.delete(imageId);
+      tileEl.classList.remove("selected");
+    } else {
+      selectedIds.add(imageId);
+      tileEl.classList.add("selected");
+    }
+    updateSelectionBar();
+  }
+
+  function clearSelection() {
+    selectedIds.clear();
+    Array.prototype.forEach.call(gridEl.querySelectorAll(".tile.selected"), function (t) {
+      t.classList.remove("selected");
+    });
+    updateSelectionBar();
+  }
+
+  function updateSelectionBar() {
+    var bar = document.getElementById("selection-bar");
+    var n = selectedIds.size;
+    bar.classList.toggle("visible", n > 0);
+    document.getElementById("selection-count").textContent = n + " selected";
+  }
+
+  document.getElementById("clear-selection-btn").onclick = clearSelection;
+  document.getElementById("delete-selected-btn").onclick = function () {
+    if (!currentSlug || selectedIds.size === 0) return;
+    var ids = Array.from(selectedIds);
+    if (!confirm("Remove " + ids.length + " photo" + (ids.length === 1 ? "" : "s") + " from the gallery?")) return;
+    deleteMany(ids);
+  };
 
   function deleteImage(imageId, tileEl) {
     if (!currentSlug) return;
     if (!confirm("Remove this photo from the gallery?")) return;
-    tileEl.style.opacity = "0.4";
+    deleteOne(imageId, tileEl, function (ok) {
+      setStatus(ok ? "Removed." : "Failed to remove photo — check your editor key.", !ok);
+    });
+  }
+
+  // Deletes run ONE AT A TIME, same reasoning as uploads: the Worker does a
+  // read-modify-write on the gallery's image list per delete, so parallel
+  // deletes can race and silently un-delete each other.
+  function deleteMany(ids) {
+    var removed = 0;
+    var failed = 0;
+    var i = 0;
+
+    function next() {
+      if (i >= ids.length) {
+        clearSelection();
+        setStatus(removed + " removed" + (failed ? ", " + failed + " failed" : "") + ".", failed > 0);
+        return;
+      }
+      var id = ids[i++];
+      var tileEl = gridEl.querySelector('.tile[data-id="' + CSS.escape(id) + '"]');
+      setStatus("Removing " + i + " of " + ids.length + "...");
+      deleteOne(id, tileEl, function (ok) {
+        ok ? removed++ : failed++;
+        next();
+      });
+    }
+
+    next();
+  }
+
+  function deleteOne(imageId, tileEl, done) {
+    if (tileEl) tileEl.style.opacity = "0.4";
     fetch(WORKER_URL + "/" + encodeURIComponent(currentSlug) + "/images/" + encodeURIComponent(imageId), {
       method: "DELETE",
       headers: { "Authorization": "Bearer " + secret },
     })
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
-        tileEl.remove();
-        setStatus("Removed.");
+        if (tileEl) tileEl.remove();
+        selectedIds.delete(imageId);
+        done(true);
       })
       .catch(function () {
-        tileEl.style.opacity = "1";
-        setStatus("Failed to remove photo — check your editor key.", true);
+        if (tileEl) tileEl.style.opacity = "1";
+        done(false);
       });
   }
 
@@ -386,24 +518,35 @@
     });
     if (!files.length) return;
 
-    setStatus("Uploading " + files.length + " photo" + (files.length === 1 ? "" : "s") + "...");
-
+    // Uploads run ONE AT A TIME on purpose — the Worker does a read-modify-write
+    // on the gallery's image list for each upload (fetch current list, append,
+    // save). Firing these in parallel lets two uploads read the list at the same
+    // time and then overwrite each other's addition when they save back, so some
+    // dropped photos silently vanish from the list even though the file itself
+    // uploaded fine. Uploading sequentially avoids that race entirely.
     var uploaded = 0;
     var failed = 0;
+    var i = 0;
 
-    files.forEach(function (file) {
+    function next() {
+      if (i >= files.length) {
+        setStatus(
+          uploaded + " uploaded" + (failed ? ", " + failed + " failed" : "") + ".",
+          failed > 0
+        );
+        selectGallery(currentSlug);
+        loadGalleryList();
+        return;
+      }
+      var file = files[i++];
+      setStatus("Uploading " + i + " of " + files.length + " (“" + file.name + "”)...");
       uploadOne(file, function (ok) {
         ok ? uploaded++ : failed++;
-        if (uploaded + failed === files.length) {
-          setStatus(
-            uploaded + " uploaded" + (failed ? ", " + failed + " failed" : "") + ".",
-            failed > 0
-          );
-          selectGallery(currentSlug);
-          loadGalleryList();
-        }
+        next();
       });
-    });
+    }
+
+    next();
   }
 
   function uploadOne(file, done) {

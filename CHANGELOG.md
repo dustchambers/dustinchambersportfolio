@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-10
+
+- User hit a real bug: dragging 32 photos into `admin.html` at once for a new `death-and-granite` gallery only resulted in 21 showing up. Root cause: the Worker's upload endpoint does a read-modify-write on the gallery's image list (fetch current list, append, save) — firing many uploads in parallel let concurrent requests read the list at the same time and overwrite each other's addition on save, silently dropping entries even though the files themselves landed fine in R2 (confirmed: all 11 "missing" files were already in R2, just absent from the list). Fixed `admin.html` to upload strictly one file at a time instead of all at once, which serializes those read-modify-writes and eliminates the race. Recovered the 11 lost entries for `death-and-granite` directly (no re-upload needed, since the files already existed).
+- Same race applies to deletes (also read-modify-write). Added multi-select to `admin.html` (click a photo to select, "Delete Selected" button) and made batch deletes sequential too, for the same reason.
+
 ## 2026-08-06 (3)
 
 - User reported margin still visible on `dustinchambersphoto.com/soma` after the outer-padding fix. Root cause was different from what I'd fixed: not CSS, but a saved KV layout row (`soma-1` + `soma-19`, plus an orphaned 3-col spacer) sized to only span columns 1–15 of the 18-column grid, leaving 3 empty columns on the right and a spacer-shaped gap on the left. Likely left over from an earlier `?gedit` session. Rebuilt the layout from the merged config with that row corrected to a proper 9+9 full-width split (matching the pattern already used elsewhere in the same gallery) and the spacer dropped. Confirmed fixed live.
