@@ -5,6 +5,7 @@
   // Priority: 1) window.GALLERY_CONFIG (static), 2) ?id= param → API fetch
 
   var WORKER_URL = "https://dustinchambersportfolio-gallery.dustintchambers.workers.dev";
+  var EDIT_SECRET = "dcp-editor-2026";
 
   var config = window.GALLERY_CONFIG || null;
 
@@ -250,6 +251,65 @@
     return div;
   }
 
+  function createImageItem(entry) {
+    var div = document.createElement("div");
+    div.className = "g9-item";
+
+    // Only apply a saved size if it maps to a known CSS class (string key).
+    // Numeric codes like 1/2/3 from the old sync.js format are ignored here
+    // and fall through to the portrait-sensing provisional default below.
+    var sizeClass = SIZE_CLASS_MAP[entry.size];
+    var hasSavedSize = !!sizeClass;
+    if (sizeClass) div.classList.add(sizeClass);
+
+    var img = document.createElement("img");
+    img.src = entry.src;
+    img.alt = entry.alt || "";
+    img.loading = "lazy";
+    img.dataset.imageId = entry.id;
+
+    if (entry.crop && entry.crop !== "50% 50%") {
+      img.style.objectPosition = entry.crop;
+    }
+
+    // Blur-up: start blurred, clear once image data arrives.
+    // Already-cached images fire load synchronously before classList.add runs,
+    // so we check .complete first and skip the blur for instant hits.
+    if (!img.complete) {
+      img.classList.add("g9-img-loading");
+    }
+
+    // Auto-default size: apply 6x4 immediately for all unsized (or unrecognised-size)
+    // images so they are never 1×1 placeholders. The onload listener refines to 4x6
+    // for portrait images once naturalWidth/Height are known.
+    if (!hasSavedSize) {
+      applySizeClass(div, "6x4"); // provisional landscape default
+    }
+    img.addEventListener("load", function () {
+      // Blur-up: transition to sharp
+      img.classList.remove("g9-img-loading");
+
+      if (hasSavedSize) return; // saved size takes priority — don't overwrite
+      // Only correct if it's still the provisional 6x4
+      if (img.naturalHeight > img.naturalWidth * 1.1) {
+        applySizeClass(div, "4x6"); // portrait correction
+        if (editorMode) { updateBadge(div); pinAllItems(); refreshSlots(); }
+      }
+      // Landscape stays 6x4, square images stay 6x4 (better than 1×1)
+    });
+
+    if (entry.cols && entry.rows) {
+      div.style.gridColumn = (entry.colStart ? entry.colStart + " / " : "") + "span " + entry.cols;
+      div.style.gridRow    = (entry.rowStart ? entry.rowStart + " / " : "") + "span " + entry.rows;
+    } else if (entry.colStart && entry.rowStart) {
+      div.style.gridColumn = entry.colStart + " / span " + (getItemSpans(div).cols || 1);
+      div.style.gridRow    = entry.rowStart + " / span " + (getItemSpans(div).rows || 1);
+    }
+
+    div.appendChild(img);
+    return div;
+  }
+
   function renderGallery() {
     var gallery = getGallery();
     if (!gallery) return;
@@ -269,61 +329,7 @@
         return;
       }
 
-      var div = document.createElement("div");
-      div.className = "g9-item";
-
-      // Only apply a saved size if it maps to a known CSS class (string key).
-      // Numeric codes like 1/2/3 from the old sync.js format are ignored here
-      // and fall through to the portrait-sensing provisional default below.
-      var sizeClass = SIZE_CLASS_MAP[entry.size];
-      var hasSavedSize = !!sizeClass;
-      if (sizeClass) div.classList.add(sizeClass);
-
-      var img = document.createElement("img");
-      img.src = entry.src;
-      img.alt = entry.alt || "";
-      img.loading = "lazy";
-      img.dataset.imageId = entry.id;
-
-      if (entry.crop && entry.crop !== "50% 50%") {
-        img.style.objectPosition = entry.crop;
-      }
-
-      // Blur-up: start blurred, clear once image data arrives.
-      // Already-cached images fire load synchronously before classList.add runs,
-      // so we check .complete first and skip the blur for instant hits.
-      if (!img.complete) {
-        img.classList.add("g9-img-loading");
-      }
-
-      // Auto-default size: apply 6x4 immediately for all unsized (or unrecognised-size)
-      // images so they are never 1×1 placeholders. The onload listener refines to 4x6
-      // for portrait images once naturalWidth/Height are known.
-      if (!hasSavedSize) {
-        applySizeClass(div, "6x4"); // provisional landscape default
-      }
-      img.addEventListener("load", function () {
-        // Blur-up: transition to sharp
-        img.classList.remove("g9-img-loading");
-
-        if (hasSavedSize) return; // saved size takes priority — don't overwrite
-        // Only correct if it's still the provisional 6x4
-        if (img.naturalHeight > img.naturalWidth * 1.1) {
-          applySizeClass(div, "4x6"); // portrait correction
-          if (editorMode) { updateBadge(div); pinAllItems(); refreshSlots(); }
-        }
-        // Landscape stays 6x4, square images stay 6x4 (better than 1×1)
-      });
-
-      if (entry.cols && entry.rows) {
-        div.style.gridColumn = (entry.colStart ? entry.colStart + " / " : "") + "span " + entry.cols;
-        div.style.gridRow    = (entry.rowStart ? entry.rowStart + " / " : "") + "span " + entry.rows;
-      } else if (entry.colStart && entry.rowStart) {
-        div.style.gridColumn = entry.colStart + " / span " + (getItemSpans(div).cols || 1);
-        div.style.gridRow    = entry.rowStart + " / span " + (getItemSpans(div).rows || 1);
-      }
-
-      div.appendChild(img);
+      var div = createImageItem(entry);
       lockAnimation(div);
       gallery.appendChild(div);
     });
@@ -2431,6 +2437,7 @@
     item.style.cursor = "grab";
     if (!isSpacer(item)) {
       addItemResizeHandles(item);
+      addImageDeleteButton(item);
     } else {
       addSpacerHandles(item);
     }
@@ -2484,6 +2491,112 @@
     };
 
     item.addEventListener("mousedown", item._onMouseDown);
+  }
+
+  // ── Image Upload / Delete (talks directly to the Worker + R2) ──
+
+  function deleteImageFromServer(imageId) {
+    return fetch(WORKER_URL + "/" + encodeURIComponent(config.id) + "/images/" + encodeURIComponent(imageId), {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + EDIT_SECRET }
+    }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+    });
+  }
+
+  function addImageDeleteButton(item) {
+    if (item.querySelector(".g9-item-del-btn")) return; // already added
+    var img = item.querySelector("img");
+    var del = document.createElement("button");
+    del.className = "g9-item-del-btn";
+    del.textContent = "×"; // ×
+    del.title = "Delete photo";
+    del.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    del.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!hasEditParam()) return;
+      if (!confirm("Delete this photo? This removes it everywhere, not just from this layout.")) return;
+
+      var imageId = img.dataset.imageId;
+      del.classList.add("deleting");
+      deleteImageFromServer(imageId)
+        .then(function () {
+          if (selectedItems.indexOf(item) !== -1) {
+            selectedItems.splice(selectedItems.indexOf(item), 1);
+          }
+          item.remove();
+          refreshOrderNumbers();
+          refreshSlots();
+          autoSave();
+        })
+        .catch(function () {
+          del.classList.remove("deleting");
+          alert("Failed to delete photo — check your connection and try again.");
+        });
+    });
+    item.appendChild(del);
+  }
+
+  function uploadImageToServer(file) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", WORKER_URL + "/" + encodeURIComponent(config.id) + "/upload");
+      xhr.setRequestHeader("Authorization", "Bearer " + EDIT_SECRET);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+      xhr.onload = function () {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error("HTTP " + xhr.status));
+          return;
+        }
+        try {
+          resolve(JSON.parse(xhr.responseText).image);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      xhr.onerror = function () { reject(new Error("network error")); };
+      xhr.send(file);
+    });
+  }
+
+  function addUploadedImageToGallery(entry) {
+    var div = createImageItem(entry);
+    lockAnimation(div);
+    getGallery().appendChild(div);
+    setupEditorItem(div);
+    pinAllItems();
+    mergeAdjacentSpacers();
+    refreshOrderNumbers();
+    refreshSlots();
+    autoSave();
+    return div;
+  }
+
+  // Uploads run ONE AT A TIME — the Worker does a read-modify-write on the
+  // gallery's image list per upload, so parallel uploads can race and
+  // silently drop each other's entry even though the file itself lands fine.
+  function uploadFilesToGallery(files, onStatus, onDone) {
+    var i = 0, uploaded = 0, failed = 0;
+    function next() {
+      if (i >= files.length) {
+        onDone(uploaded, failed);
+        return;
+      }
+      var file = files[i++];
+      onStatus("Uploading " + i + " of " + files.length + " (“" + file.name + "”)…");
+      uploadImageToServer(file)
+        .then(function (entry) {
+          addUploadedImageToGallery(entry);
+          uploaded++;
+          next();
+        })
+        .catch(function () {
+          failed++;
+          next();
+        });
+    }
+    next();
   }
 
   // ── Export HTML ──
@@ -2610,7 +2723,7 @@
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer dcp-editor-2026"
+        "Authorization": "Bearer " + EDIT_SECRET
       },
       body: JSON.stringify(layout)
     })
@@ -2722,6 +2835,8 @@
           '<div class="edit-banner-actions">' +
             '<button id="editor-done">Done</button>' +
             (canEdit ? '<button id="editor-publish">Publish</button>' : '') +
+            (canEdit ? '<button id="editor-upload">Upload</button>' +
+              '<input type="file" id="editor-upload-input" accept="image/*" multiple style="display:none">' : '') +
             '<span class="editor-export-wrap">' +
               '<button id="editor-export-toggle">Export \u25be</button>' +
               '<div id="editor-export-menu" style="display:none;position:absolute;top:100%;right:0;z-index:500;' +
@@ -2747,6 +2862,30 @@
         document
           .getElementById("editor-publish")
           .addEventListener("click", publishLayout);
+
+        var uploadBtn = document.getElementById("editor-upload");
+        var uploadInput = document.getElementById("editor-upload-input");
+        uploadBtn.addEventListener("click", function () { uploadInput.click(); });
+        uploadInput.addEventListener("change", function () {
+          var files = Array.prototype.filter.call(uploadInput.files, function (f) {
+            return /^image\//.test(f.type);
+          });
+          uploadInput.value = "";
+          if (!files.length) return;
+
+          uploadBtn.disabled = true;
+          var infoEl = document.querySelector(".edit-banner-info");
+          var originalInfo = infoEl.innerHTML;
+          uploadFilesToGallery(
+            files,
+            function (statusText) { infoEl.textContent = statusText; },
+            function (uploaded, failed) {
+              uploadBtn.disabled = false;
+              infoEl.innerHTML = originalInfo;
+              if (failed) alert(uploaded + " uploaded, " + failed + " failed. Try the failed ones again.");
+            }
+          );
+        });
       }
       // Export dropdown
       var exportToggle = document.getElementById("editor-export-toggle");
@@ -3032,10 +3171,26 @@
     document.body.classList.add("embedded");
 
     var gallery = document.getElementById("gallery");
-    new ResizeObserver(function () {
+
+    function postResizeHeight() {
       var h = gallery.offsetTop + gallery.offsetHeight;
       window.parent.postMessage({ type: "resize", height: h }, "*");
-    }).observe(gallery);
+    }
+
+    // ResizeObserver only sees changes to #gallery's own box (catches new/
+    // resized items, portrait-correction reflow, etc.) — it does NOT see a
+    // shift in gallery.offsetTop caused by something ABOVE it changing
+    // height, e.g. the .gallery-header reflowing once the Inconsolata web
+    // font (loaded async via @import) finishes swapping in. That leaves a
+    // stale, slightly-too-tall iframe with a gap below the last row. Cover
+    // that with an explicit re-check once fonts settle, plus a load-event
+    // fallback for anything else that shifts layout after first paint.
+    new ResizeObserver(postResizeHeight).observe(gallery);
+    postResizeHeight();
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(postResizeHeight);
+    }
+    window.addEventListener("load", postResizeHeight);
   }
 
   // ── Initialize ──

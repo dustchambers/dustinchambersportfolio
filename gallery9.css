@@ -991,6 +991,35 @@ body.edit-mode .g9-item.g9-selected:hover img {
   background: rgba(26,26,26,0.85);
 }
 
+/* ── Image Delete Button (editor) ── */
+.g9-item-del-btn {
+  position: absolute;
+  top: 14px;
+  right: 4px; /* inside the right edge, below the tr corner handle */
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26,26,26,0.55);
+  color: #EDEBE0;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 25; /* above corner handles (z-index: 20) */
+  transition: background 0.15s;
+  padding: 0;
+}
+.g9-item-del-btn:hover {
+  background: rgba(26,26,26,0.85);
+}
+.g9-item-del-btn.deleting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* ── Image Edge / Corner Resize Handles ── */
 .item-resize-handle {
   position: absolute;
