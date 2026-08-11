@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-10 (2)
+
+- User reported scrolling inside the gallery embed felt clunky — scroll was getting captured by the iframe's own internal scroll instead of always moving the real page. Cause: `body { overflow-y: auto }` was unconditional, so any brief mismatch between the iframe's synced height and actual content (a late-loading image, a timing gap before the resize postMessage lands) let the iframe's body become internally scrollable and grab the wheel/trackpad event before releasing it back to the parent. Disabled internal scrolling for embedded view (`body.embedded:not(.edit-mode) { overflow-y: hidden }`), keeping it only for the `?gedit` editor, which genuinely needs body as the scroll container for its position:fixed toolbar. Verified via a local same-origin iframe test that scroll now passes straight through to the parent page.
+
 ## 2026-08-10
 
 - User hit a real bug: dragging 32 photos into `admin.html` at once for a new `death-and-granite` gallery only resulted in 21 showing up. Root cause: the Worker's upload endpoint does a read-modify-write on the gallery's image list (fetch current list, append, save) — firing many uploads in parallel let concurrent requests read the list at the same time and overwrite each other's addition on save, silently dropping entries even though the files themselves landed fine in R2 (confirmed: all 11 "missing" files were already in R2, just absent from the list). Fixed `admin.html` to upload strictly one file at a time instead of all at once, which serializes those read-modify-writes and eliminates the race. Recovered the 11 lost entries for `death-and-granite` directly (no re-upload needed, since the files already existed).

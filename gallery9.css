@@ -24,6 +24,17 @@ body.embedded {
   overscroll-behavior: none;
 }
 
+/* The body-as-scroll-container (overflow-y:auto above) exists only for
+   position:fixed anchoring in the ?gedit editor. In normal embedded viewing
+   it's a liability: if the iframe's synced height is ever even slightly
+   behind actual content (a brief race on load, a late-loading image), the
+   body becomes internally scrollable and steals wheel/trackpad scroll from
+   the parent page before releasing it back — clunky, double-scroll feel.
+   Disable it outside edit mode so scroll always passes straight through. */
+body.embedded:not(.edit-mode) {
+  overflow-y: hidden;
+}
+
 body.embedded .navbar,
 body.embedded .hero,
 body.embedded .footer {
