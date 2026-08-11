@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-10 (5)
+
+- Fixed text blocks (spacer titles/paragraphs) duplicating, reported on `death-and-granite-1`. Root cause, found by reading code (not by loading the page): `init()` called `restoreState()` unconditionally on every load, which applies whatever's saved in that browser's `localStorage` for the gallery. Photos are matched by id and just repositioned — safe. Spacers have no identity to match against, so `createSpacerElement()` always builds a brand-new one, with nothing removing the spacer `renderGallery()` already built from the server config moments earlier — so any leftover local draft (this exact behavior was fought over in the git history before this session: an earlier attempt to gate it to edit-mode-only was reverted) stacks a duplicate text block on top for every spacer. Regular visitors without that localStorage entry never see it — this would only hit whichever browser had been used to edit the layout.
+  - Gated the `init()` call to only run when `?gedit` is present (view-only visits never touch localStorage now).
+  - Hardened `restoreState()` itself too: it now removes the spacers `renderGallery()` just built before restoring a draft's own spacers, so even a legitimate edit-mode restore can't double up.
+- Bumped `gallery9.js` to `?v=4`.
+
 ## 2026-08-10 (4)
 
 - Added real per-photo captions. Worker: new `PATCH /{slug}/images/{id}` endpoint updates one photo's caption. `admin.html`: every tile now has a caption input (click doesn't trigger multi-select — stopPropagation), saves on blur/Enter.

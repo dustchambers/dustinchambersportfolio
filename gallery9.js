@@ -1325,6 +1325,15 @@
         if (img) itemMap[img.dataset.imageId] = item;
       });
 
+      // Images below are matched by id and repositioned (never duplicated),
+      // but spacers have no identity to match against — createSpacerElement
+      // always makes a new one. Remove the ones renderGallery() just built
+      // from the server config so restoring a local draft replaces them
+      // instead of stacking a second copy on top.
+      items.forEach(function (item) {
+        if (isSpacer(item)) item.remove();
+      });
+
       var restoredIds = {};
 
       state.forEach(function (entry) {
@@ -3201,7 +3210,15 @@
   function init() {
     renderGallery();
     ensureLightbox();
-    restoreState();
+    // Only apply a locally-saved draft when actually opening the editor
+    // (?gedit). Published/view-only visits already have the correct,
+    // server-rendered content from renderGallery() above — restoreState()
+    // doesn't check whether a spacer/text block already exists before
+    // creating one, so applying a stale local draft on top of that (e.g.
+    // left over in this browser from a previous editing session) duplicates
+    // every text block. Images don't show this because they're matched and
+    // repositioned by id instead of being freshly created.
+    if (hasEditParam()) restoreState();
     bindClicks();
 
     // Lightbox controls
