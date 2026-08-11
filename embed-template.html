@@ -8,7 +8,7 @@
 
 <script>
   var iframe = document.getElementById("lot43-gallery");
-  var iframeSrc = "https://dustchambers.github.io/dustinchambersportfolio/gallery9.html?id=YOUR-GALLERY-NAME"; // ← change this
+  var iframeSrc = "https://dustchambers.github.io/dustinchambersportfolio/gallery9.html?id=death-and-granite"; // ← change this
   if (new URLSearchParams(window.location.search).has("gedit")) {
     iframeSrc += "&gedit";
   }
@@ -22,14 +22,16 @@
   function buildLightbox() {
     lbEl = document.createElement("div");
     lbEl.id = "lb-overlay";
-    lbEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(26,26,26,0.95);display:flex;align-items:center;justify-content:center;z-index:999999;opacity:0;transition:opacity 0.3s;pointer-events:none";
+    lbEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(26,26,26,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;opacity:0;transition:opacity 0.3s;pointer-events:none";
     lbEl.innerHTML =
       '<button id="lb-close" style="position:absolute;top:2rem;right:2.5rem;background:none;border:none;color:#EDEBE0;font-size:2.2rem;cursor:pointer;opacity:0.6;z-index:1002">&times;</button>' +
       '<button id="lb-prev" style="position:absolute;left:0;top:0;width:12.5%;height:100%;background:none;border:none;color:#EDEBE0;font-size:3rem;cursor:pointer;opacity:0.3;z-index:1001;display:flex;align-items:center;justify-content:center">&#8249;</button>' +
       '<button id="lb-next" style="position:absolute;right:0;top:0;width:12.5%;height:100%;background:none;border:none;color:#EDEBE0;font-size:3rem;cursor:pointer;opacity:0.3;z-index:1001;display:flex;align-items:center;justify-content:center">&#8250;</button>' +
-      '<img id="lb-img" style="max-width:90vw;max-height:85vh;object-fit:contain;border-radius:2px">' +
-      '<p id="lb-caption" style="position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);font-family:Inconsolata,monospace;font-size:0.95rem;color:rgba(232,228,223,0.5);letter-spacing:0.1em;text-transform:uppercase"></p>' +
-      '<span id="lb-counter" style="position:absolute;bottom:4.5rem;left:50%;transform:translateX(-50%);font-family:Inconsolata,monospace;font-size:0.85rem;color:rgba(232,228,223,0.4);letter-spacing:0.15em"></span>';
+      '<div id="lb-content" style="display:flex;flex-direction:column;align-items:center;max-width:90vw;max-height:90vh">' +
+        '<img id="lb-img" style="max-width:90vw;max-height:78vh;object-fit:contain;border-radius:2px">' +
+        '<p id="lb-caption" style="margin:1.1rem 0 0;font-family:Inconsolata,monospace;font-size:0.95rem;color:rgba(232,228,223,0.6);letter-spacing:0.1em;text-transform:uppercase;text-align:center"></p>' +
+        '<span id="lb-counter" style="margin-top:0.6rem;font-family:Inconsolata,monospace;font-size:0.8rem;color:rgba(232,228,223,0.4);letter-spacing:0.15em"></span>' +
+      '</div>';
     document.body.appendChild(lbEl);
     document.getElementById("lb-close").onclick = closeLb;
     document.getElementById("lb-prev").onclick = function() { showLb(lbIndex - 1); };
@@ -43,7 +45,9 @@
     var img = lbImages[lbIndex];
     document.getElementById("lb-img").src = img.src;
     document.getElementById("lb-img").alt = img.alt;
-    document.getElementById("lb-caption").textContent = img.alt;
+    var captionEl = document.getElementById("lb-caption");
+    captionEl.textContent = img.alt || "";
+    captionEl.style.display = img.alt ? "block" : "none";
     document.getElementById("lb-counter").textContent = (lbIndex + 1) + " / " + lbImages.length;
     lbEl.style.opacity = "1";
     lbEl.style.pointerEvents = "all";

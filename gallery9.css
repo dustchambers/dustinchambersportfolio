@@ -733,6 +733,7 @@ body:not(.edit-mode) .spacer-text:empty::before {
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(26,26,26,0.95);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 1000;
@@ -746,23 +747,32 @@ body:not(.edit-mode) .spacer-text:empty::before {
   pointer-events: all;
 }
 
+/* Image + caption + counter stack vertically, centered as one unit — the
+   caption/counter sit below the image in normal flow instead of being
+   absolutely overlaid on top of it. */
+.lightbox-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
 .lightbox img {
   max-width: 90vw;
-  max-height: 88vh;
+  max-height: 78vh;
   object-fit: contain;
   transition: opacity 0.3s ease;
 }
 
 .lightbox-caption {
-  position: absolute;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
+  margin: 1.1rem 0 0;
   font-family: 'Inconsolata', monospace;
   font-size: 0.95rem;
-  color: rgba(232,228,223,0.5);
+  color: rgba(232,228,223,0.6);
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .lightbox-close {
@@ -795,10 +805,9 @@ body:not(.edit-mode) .spacer-text:empty::before {
 .lightbox-next { right: 0.5rem; }
 
 .lightbox-counter {
-  position: absolute;
-  bottom: 2rem;
+  margin-top: 0.6rem;
   font-family: 'Inconsolata', monospace;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: rgba(232,228,223,0.4);
   letter-spacing: 0.15em;
 }

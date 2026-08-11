@@ -18,6 +18,8 @@
 //                                      bytes, header X-Filename = desired filename)
 //   DELETE /{gallery-slug}/images/{imageId} — removes one image from the base list + R2
 //                                      (requires Authorization: Bearer <secret>)
+//   PATCH  /{gallery-slug}/images/{imageId} — updates one image's caption
+//                                      (requires Authorization: Bearer <secret>, body = { caption })
 //   PUT    /{gallery-slug}          — saves layout to KV (requires Authorization: Bearer <secret>)
 //   PUT    /{gallery-slug}/images   — seeds/replaces the base image list in KV (requires Authorization: Bearer <secret>)
 
@@ -31,7 +33,7 @@ export default {
     // CORS headers for iframe/cross-origin access
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PUT, POST, PATCH, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Filename",
     };
 
@@ -66,6 +68,11 @@ export default {
     // ── DELETE: Remove an image from the base list + R2 ──
     if (request.method === "DELETE" && subresource === "images" && parts[2]) {
       return handleDeleteImage(request, env, slug, decodeURIComponent(parts[2]), corsHeaders);
+    }
+
+    // ── PATCH: Update one image's caption ──
+    if (request.method === "PATCH" && subresource === "images" && parts[2]) {
+      return handlePatchImageCaption(request, env, slug, decodeURIComponent(parts[2]), corsHeaders);
     }
 
     // ── PUT: Seed/replace the base image list in KV ──
@@ -246,7 +253,7 @@ async function handleUpload(request, env, slug, corsHeaders) {
   const newEntry = {
     id: filename,
     src: `${origin}/${slug}/img/${encodeURIComponent(filename)}`,
-    alt: base.title || slug,
+    alt: "", // caption — empty until set via admin.html or the ?gedit editor
     size: 1,
   };
 
@@ -300,6 +307,58 @@ async function handleDeleteImage(request, env, slug, imageId, corsHeaders) {
   await env.GALLERY_IMAGES.delete(slug + "/" + imageId).catch(() => {});
 
   return Response.json({ ok: true }, { headers: corsHeaders });
+}
+
+async function handlePatchImageCaption(request, env, slug, imageId, corsHeaders) {
+  // Validate auth
+  const authHeader = request.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+
+  if (!token || token !== env.EDIT_SECRET) {
+    return Response.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: corsHeaders }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return Response.json(
+      { error: "Invalid JSON body" },
+      { status: 400, headers: corsHeaders }
+    );
+  }
+
+  if (typeof body.caption !== "string") {
+    return Response.json(
+      { error: "Body must be an object with a `caption` string" },
+      { status: 400, headers: corsHeaders }
+    );
+  }
+
+  const kvBase = await env.GALLERY_KV.get("images:" + slug);
+  if (!kvBase) {
+    return Response.json(
+      { error: `Gallery "${slug}" not found` },
+      { status: 404, headers: corsHeaders }
+    );
+  }
+
+  const base = JSON.parse(kvBase);
+  const image = base.images.find((img) => img.id === imageId);
+  if (!image) {
+    return Response.json(
+      { error: `Image "${imageId}" not found in "${slug}"` },
+      { status: 404, headers: corsHeaders }
+    );
+  }
+
+  image.alt = body.caption;
+  await env.GALLERY_KV.put("images:" + slug, JSON.stringify(base));
+
+  return Response.json({ ok: true, image }, { headers: corsHeaders });
 }
 
 async function handleGet(env, slug, corsHeaders) {

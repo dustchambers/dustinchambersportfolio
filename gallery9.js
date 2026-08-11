@@ -348,9 +348,11 @@
         '<button class="lightbox-close" id="lightbox-close">&times;</button>' +
         '<button class="lightbox-nav lightbox-prev" id="lightbox-prev">&#8249;</button>' +
         '<button class="lightbox-nav lightbox-next" id="lightbox-next">&#8250;</button>' +
-        '<img src="" alt="" id="lightbox-img">' +
-        '<p class="lightbox-caption" id="lightbox-caption"></p>' +
-        '<span class="lightbox-counter" id="lightbox-counter"></span>';
+        '<div class="lightbox-content">' +
+          '<img src="" alt="" id="lightbox-img">' +
+          '<p class="lightbox-caption" id="lightbox-caption"></p>' +
+          '<span class="lightbox-counter" id="lightbox-counter"></span>' +
+        '</div>';
       document.body.appendChild(lightbox);
     }
 
@@ -1572,6 +1574,7 @@
     lightboxImg.src = img.src;
     lightboxImg.alt = img.alt;
     lightboxCaption.textContent = img.alt || "";
+    lightboxCaption.style.display = img.alt ? "block" : "none";
     lightboxCounter.textContent = (index + 1) + " / " + visibleItems.length;
 
     lightboxOpen = true;

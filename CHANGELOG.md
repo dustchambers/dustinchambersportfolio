@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-10 (4)
+
+- Added real per-photo captions. Worker: new `PATCH /{slug}/images/{id}` endpoint updates one photo's caption. `admin.html`: every tile now has a caption input (click doesn't trigger multi-select — stopPropagation), saves on blur/Enter.
+- Fixed the lightbox: the counter/caption were absolutely positioned on top of the image, so on shorter/differently-cropped photos "1 / 25" visually overlapped the caption text. Restructured to a flex column (image, then caption, then counter, stacked below it) in both places this lightbox exists — `embed-template.html` (the one actually live via SoloFolio's pasted HTML) and gallery9's own built-in lightbox (direct, non-embedded viewing). Caption element now hides entirely when empty instead of showing a blank gap.
+- New photos previously defaulted their caption (`alt`) to the *gallery title*, so the lightbox showed "DEATH-AND-GRANITE" under every single photo — not a real caption, just an unhelpful fallback. Changed the upload default to empty, and cleared that placeholder off all existing photos in soma/portraits/death-and-granite so the lightbox shows nothing until a real caption is set via admin.html.
+- Caught and fixed a bug I introduced while doing that cleanup: the script read the *merged* config (base photos + layout-injected spacers) and wrote the whole thing back as the base image list, which let 14 spacer-shaped entries (no `id`) leak into death-and-granite's base list — surfacing as a jump from 28 to 39 "images" and duplicated spacers on re-merge. Rebuilt the base list from the merged view keeping only real (deduped, `id`-having) photos; verified back to 25 photos + 7 spacers with no duplication, no data loss.
+- Also filtered spacer entries out of admin.html's grid entirely (`renderGrid` now only receives entries with an `id`) — it was rendering blank, non-functional tiles for them, which is what surfaced the merged-vs-base confusion above in the first place.
+
+**Note:** the lightbox fix lives in code pasted directly into each SoloFolio page (not loaded from an external file), so it won't take effect on already-published pages until the embed snippet is re-copied from `embed-template.html` and re-pasted into each one.
+
 ## 2026-08-10 (3)
 
 - Added upload and delete directly inside the `?gedit` editor, so adding/removing photos no longer requires switching to `admin.html`. An "Upload" toolbar button lets you drag/pick new photos (uploaded one at a time, same race-safe pattern as `admin.html`'s fix); each new photo appears immediately, ready to position. Every photo also gets a small × button (matching the one spacers already had) that deletes it from the gallery entirely, not just the current layout. Refactored the per-image DOM-building code out of `renderGallery` into a reusable `createImageItem()` so newly uploaded photos get built identically to ones loaded from the server.

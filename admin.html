@@ -164,6 +164,24 @@
     font-size: 0.8rem;
     font-weight: 700;
   }
+  .tile .caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    color: white;
+    background: linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));
+    border: none;
+    outline: none;
+    cursor: text;
+  }
+  .tile .caption::placeholder { color: rgba(255,255,255,0.6); }
+  .tile .caption.saving { opacity: 0.6; }
 
   #selection-bar {
     display: none;
@@ -340,8 +358,11 @@
     fetch(WORKER_URL + "/" + encodeURIComponent(slug))
       .then(function (r) { return r.json(); })
       .then(function (cfg) {
-        renderGrid(cfg.images || []);
-        setStatus(cfg.images.length + " photo" + (cfg.images.length === 1 ? "" : "s"));
+        // Layout spacers (from the ?gedit editor) have no id — they aren't
+        // photos, so admin.html has nothing to show or manage for them.
+        var photos = (cfg.images || []).filter(function (img) { return img.id; });
+        renderGrid(photos);
+        setStatus(photos.length + " photo" + (photos.length === 1 ? "" : "s"));
       })
       .catch(function () { setStatus("Failed to load gallery", true); });
   }
@@ -381,6 +402,25 @@
     var check = document.createElement("div");
     check.className = "check";
     tile.appendChild(check);
+
+    var caption = document.createElement("input");
+    caption.className = "caption";
+    caption.type = "text";
+    caption.placeholder = "Add caption…";
+    caption.value = img.alt || "";
+    caption.title = "Shown under the photo in the lightbox";
+    caption.addEventListener("click", function (e) { e.stopPropagation(); });
+    caption.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    caption.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") caption.blur();
+    });
+    caption.addEventListener("blur", function () {
+      var value = caption.value.trim();
+      if (value === (img.alt || "")) return; // unchanged
+      saveCaption(img.id, value, caption);
+    });
+    tile.appendChild(caption);
 
     var del = document.createElement("button");
     del.className = "del";
@@ -463,6 +503,27 @@
     deleteOne(imageId, tileEl, function (ok) {
       setStatus(ok ? "Removed." : "Failed to remove photo — check your editor key.", !ok);
     });
+  }
+
+  function saveCaption(imageId, caption, inputEl) {
+    inputEl.classList.add("saving");
+    fetch(WORKER_URL + "/" + encodeURIComponent(currentSlug) + "/images/" + encodeURIComponent(imageId), {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + secret,
+      },
+      body: JSON.stringify({ caption: caption }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        inputEl.classList.remove("saving");
+        setStatus("Caption saved.");
+      })
+      .catch(function () {
+        inputEl.classList.remove("saving");
+        setStatus("Failed to save caption — check your editor key.", true);
+      });
   }
 
   // Deletes run ONE AT A TIME, same reasoning as uploads: the Worker does a
