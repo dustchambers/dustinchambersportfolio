@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-10 (7)
+
+- Mobile lightbox feedback: the prev/next arrow buttons visually overlapped the photo on narrow screens, and the × close button was redundant with tap-outside-to-close (already implemented). Removed both. Added touch swipe (left/right, 40px threshold, must be more horizontal than vertical) to navigate instead. Tap-on-background-to-close was already there — just needed the × removed since it was extra UI doing the same job.
+- This shipped through `embed.js` (the external file added earlier today), so — unlike every lightbox fix before it this session — it's live automatically, no SoloFolio re-paste required. First real test of that architecture change.
+- Left gallery9.js's own built-in lightbox (used only when viewing the gallery page directly, outside the SoloFolio embed) with the old arrow/close-button UI — rarely user-facing, not worth the time right now for parity's sake alone.
+
 ## 2026-08-10 (6)
 
 - User asked, after the lightbox fix didn't show up on the live site: can design iteration avoid needing a SoloFolio re-paste going forward? Root cause was architectural — the lightbox has to run in the *parent* SoloFolio page (position:fixed doesn't anchor correctly from inside a cross-origin iframe), so it was pasted inline as an ~80-line `<script>` block directly into each page's HTML field. Everything else (grid, editor, uploads) already lived inside the iframe and auto-updated all session; the lightbox was the one exception.

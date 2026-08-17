@@ -52,21 +52,32 @@
   function buildLightbox() {
     lbEl = document.createElement("div");
     lbEl.id = uid + "-lb-overlay";
-    lbEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(26,26,26,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;opacity:0;transition:opacity 0.3s;pointer-events:none";
+    lbEl.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(26,26,26,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;opacity:0;transition:opacity 0.3s;pointer-events:none;touch-action:none";
     lbEl.innerHTML =
-      '<button id="' + uid + '-lb-close" style="position:absolute;top:2rem;right:2.5rem;background:none;border:none;color:#EDEBE0;font-size:2.2rem;cursor:pointer;opacity:0.6;z-index:1002">&times;</button>' +
-      '<button id="' + uid + '-lb-prev" style="position:absolute;left:0;top:0;width:12.5%;height:100%;background:none;border:none;color:#EDEBE0;font-size:3rem;cursor:pointer;opacity:0.3;z-index:1001;display:flex;align-items:center;justify-content:center">&#8249;</button>' +
-      '<button id="' + uid + '-lb-next" style="position:absolute;right:0;top:0;width:12.5%;height:100%;background:none;border:none;color:#EDEBE0;font-size:3rem;cursor:pointer;opacity:0.3;z-index:1001;display:flex;align-items:center;justify-content:center">&#8250;</button>' +
       '<div id="' + uid + '-lb-content" style="display:flex;flex-direction:column;align-items:center;max-width:90vw;max-height:90vh">' +
         '<img id="' + uid + '-lb-img" style="max-width:90vw;max-height:78vh;object-fit:contain;border-radius:2px">' +
         '<p id="' + uid + '-lb-caption" style="margin:1.1rem 0 0;font-family:Inconsolata,monospace;font-size:0.95rem;color:rgba(232,228,223,0.6);letter-spacing:0.1em;text-transform:uppercase;text-align:center"></p>' +
         '<span id="' + uid + '-lb-counter" style="margin-top:0.6rem;font-family:Inconsolata,monospace;font-size:0.8rem;color:rgba(232,228,223,0.4);letter-spacing:0.15em"></span>' +
       '</div>';
     document.body.appendChild(lbEl);
-    document.getElementById(uid + "-lb-close").onclick = closeLb;
-    document.getElementById(uid + "-lb-prev").onclick = function() { showLb(lbIndex - 1); };
-    document.getElementById(uid + "-lb-next").onclick = function() { showLb(lbIndex + 1); };
+
+    // Tap the background (not the image/caption) to close — no explicit close button needed.
     lbEl.onclick = function(ev) { if (ev.target === lbEl) closeLb(); };
+
+    // Swipe left/right to navigate — replaces the old on-image arrow buttons,
+    // which visually overlapped the photo on narrow/mobile screens.
+    var touchStartX = 0, touchStartY = 0;
+    lbEl.addEventListener("touchstart", function(ev) {
+      touchStartX = ev.touches[0].clientX;
+      touchStartY = ev.touches[0].clientY;
+    }, { passive: true });
+    lbEl.addEventListener("touchend", function(ev) {
+      var dx = ev.changedTouches[0].clientX - touchStartX;
+      var dy = ev.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+        showLb(lbIndex + (dx < 0 ? 1 : -1));
+      }
+    }, { passive: true });
   }
 
   function showLb(i) {
