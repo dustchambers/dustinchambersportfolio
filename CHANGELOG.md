@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-10 (8)
+
+- Confirmed the earlier re-paste was correct (checked the live page's HTML directly: it's loading `embed.js` externally, no leftover inline lightbox code) and that the live `embed.js` file has the swipe fix — user wasn't seeing it on their phone, most likely Safari's own script cache (quitting the app / reloading doesn't force a re-fetch). Pointed them at a Private Browsing tab as the quick test, and clearing Website Data for the two domains as the fix.
+- Added tap-to-navigate: tapping the left/right half of the photo goes prev/next (was arrow buttons before, now removed).
+- Upgraded the swipe gesture from "detect on release" to a real drag: the photo now tracks the finger 1:1 during the touch (with a slight fade as it moves), and on release either slides fully off-screen with the next/prev photo sliding in from the opposite side (past the 40px threshold) or snaps back to center (below it). Implemented via touchmove-driven `transform: translateX()` plus a forced-reflow trick (`void contentEl.offsetWidth`) so the slide-in transition actually animates instead of just snapping to place.
+- All of this ships via `embed.js`, so no SoloFolio re-paste needed — this was the first real test of that, and (pending the cache confirmation above) it worked.
+
 ## 2026-08-10 (7)
 
 - Mobile lightbox feedback: the prev/next arrow buttons visually overlapped the photo on narrow screens, and the × close button was redundant with tap-outside-to-close (already implemented). Removed both. Added touch swipe (left/right, 40px threshold, must be more horizontal than vertical) to navigate instead. Tap-on-background-to-close was already there — just needed the × removed since it was extra UI doing the same job.

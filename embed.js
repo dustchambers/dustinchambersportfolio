@@ -61,21 +61,66 @@
       '</div>';
     document.body.appendChild(lbEl);
 
+    var contentEl = document.getElementById(uid + "-lb-content");
+    var imgEl = document.getElementById(uid + "-lb-img");
+
     // Tap the background (not the image/caption) to close — no explicit close button needed.
     lbEl.onclick = function(ev) { if (ev.target === lbEl) closeLb(); };
 
-    // Swipe left/right to navigate — replaces the old on-image arrow buttons,
-    // which visually overlapped the photo on narrow/mobile screens.
-    var touchStartX = 0, touchStartY = 0;
+    // Tap the left/right half of the image to navigate — replaces the old
+    // on-image arrow buttons, which visually overlapped the photo on
+    // narrow/mobile screens.
+    imgEl.onclick = function(ev) {
+      var rect = imgEl.getBoundingClientRect();
+      var hitLeft = (ev.clientX - rect.left) < rect.width / 2;
+      showLb(lbIndex + (hitLeft ? -1 : 1));
+    };
+
+    // Drag-to-swipe: the image tracks the finger in real time, then either
+    // slides out (past the threshold) and the next/prev photo slides in
+    // from the opposite side, or snaps back to center.
+    var touchStartX = 0, touchStartY = 0, dragDx = 0, dragging = false;
+
     lbEl.addEventListener("touchstart", function(ev) {
       touchStartX = ev.touches[0].clientX;
       touchStartY = ev.touches[0].clientY;
+      dragDx = 0;
+      dragging = true;
+      contentEl.style.transition = "none";
     }, { passive: true });
-    lbEl.addEventListener("touchend", function(ev) {
-      var dx = ev.changedTouches[0].clientX - touchStartX;
-      var dy = ev.changedTouches[0].clientY - touchStartY;
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-        showLb(lbIndex + (dx < 0 ? 1 : -1));
+
+    lbEl.addEventListener("touchmove", function(ev) {
+      if (!dragging) return;
+      var dx = ev.touches[0].clientX - touchStartX;
+      var dy = ev.touches[0].clientY - touchStartY;
+      if (Math.abs(dy) > Math.abs(dx)) return; // vertical gesture — let it be, don't drag
+      dragDx = dx;
+      contentEl.style.transform = "translateX(" + dx + "px)";
+      contentEl.style.opacity = String(1 - Math.min(Math.abs(dx) / 400, 0.5));
+    }, { passive: true });
+
+    lbEl.addEventListener("touchend", function() {
+      dragging = false;
+      var dx = dragDx;
+      if (Math.abs(dx) > 40) {
+        var dir = dx < 0 ? 1 : -1; // swiped left → next, swiped right → prev
+        var w = contentEl.getBoundingClientRect().width || 300;
+        contentEl.style.transition = "transform 0.2s ease-in, opacity 0.2s ease-in";
+        contentEl.style.transform = "translateX(" + (-dir * w) + "px)";
+        contentEl.style.opacity = "0";
+        setTimeout(function() {
+          showLb(lbIndex + dir);
+          contentEl.style.transition = "none";
+          contentEl.style.transform = "translateX(" + (dir * w) + "px)";
+          void contentEl.offsetWidth; // force reflow so the next transition actually animates
+          contentEl.style.transition = "transform 0.2s ease-out, opacity 0.2s ease-out";
+          contentEl.style.transform = "translateX(0)";
+          contentEl.style.opacity = "1";
+        }, 200);
+      } else {
+        contentEl.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+        contentEl.style.transform = "translateX(0)";
+        contentEl.style.opacity = "1";
       }
     }, { passive: true });
   }
