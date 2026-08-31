@@ -185,7 +185,15 @@ async function handlePutImages(request, env, slug, corsHeaders) {
 async function handleListGalleries(env, corsHeaders) {
   const list = await env.GALLERY_KV.list({ prefix: "images:" });
   const slugs = list.keys.map((k) => k.name.slice("images:".length));
-  return Response.json({ galleries: slugs }, { headers: corsHeaders });
+  // no-store: this response has no validator, so without it browsers happily
+  // reuse a heuristically-cached copy from before a new gallery was created,
+  // and the gallery looks like it vanished. (KV list() is also eventually
+  // consistent, so a just-created gallery can still be missing for up to a
+  // minute — admin.html compensates by merging in the slug it has open.)
+  return Response.json(
+    { galleries: slugs },
+    { headers: { ...corsHeaders, "Cache-Control": "no-store" } }
+  );
 }
 
 async function handleGetImage(env, slug, filename, corsHeaders) {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-30
+
+- **Fixed: newly created galleries vanishing from `admin.html`'s dropdown** (reported as "I created `commercial` and it disappeared"). Root cause is a race, not data loss — `commercial` was never gone from KV, and the Worker returns it today. `GET /_galleries` is built from `GALLERY_KV.list({prefix:"images:"})`, and **KV `list()` is eventually consistent**: the key written by the first upload can be absent from list results for up to ~a minute. `admin.html` called `loadGalleryList()` immediately after the last upload finished, got a list that didn't include the brand-new slug, rebuilt the `<select>` from scratch, and — because it always re-selected `gallerySelect.value` (the first option) — silently snapped the selection to a *different* gallery. Which also meant the next batch of dragged-in photos would have quietly uploaded into the wrong gallery.
+  - `loadGalleryList(preferredSlug)` now treats the server list as "at least these", never as the complete truth: it merges the currently open slug in if the server hasn't caught up, and preserves the current selection across a refresh instead of resetting to the first option. It only re-fetches the grid when the refresh actually moved to a different gallery.
+  - Added the missing `.catch` — a failed list fetch previously left an empty dropdown with no explanation.
+  - Cache-busted the request (`?t=` + `cache: "no-store"`). The response carries no validator, so a browser could serve a heuristically-cached copy from before the gallery existed, making the disappearance outlast the KV window.
+- Worker: `GET /_galleries` now sends `Cache-Control: no-store` for the same reason.
+- `admin.html`'s **Create** button now adds the typed slug to the dropdown immediately and selects it. Before, it only set `currentSlug` internally — the slug had no visible home, so changing galleries once lost it.
+- Verified against the live Worker in a real browser: a slug the server doesn't list yet stays selected and stays in the dropdown; a refresh with `commercial` open keeps `commercial` open with no redundant grid reload; a cold load still selects and loads the first gallery.
+- Not yet deployed — needs `wrangler deploy` for the Worker and a commit/push for `admin.html` on GitHub Pages.
+
 ## 2026-08-10 (8)
 
 - Confirmed the earlier re-paste was correct (checked the live page's HTML directly: it's loading `embed.js` externally, no leftover inline lightbox code) and that the live `embed.js` file has the swipe fix — user wasn't seeing it on their phone, most likely Safari's own script cache (quitting the app / reloading doesn't force a re-fetch). Pointed them at a Private Browsing tab as the quick test, and clearing Website Data for the two domains as the fix.

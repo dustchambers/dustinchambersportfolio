@@ -319,20 +319,42 @@
   // ── Gallery list ──
   var gallerySelect = document.getElementById("gallerySelect");
 
-  function loadGalleryList() {
-    fetch(WORKER_URL + "/_galleries")
+  // The Worker builds /_galleries from a KV list(), which is EVENTUALLY
+  // CONSISTENT — a gallery whose first photo just finished uploading can be
+  // missing from the response for up to a minute. So the list from the server
+  // is treated as "at least these", never as the complete truth: whatever slug
+  // is currently open is always merged in, and the current selection is always
+  // preserved across a refresh. Without that, refreshing right after creating a
+  // gallery dropped it from the dropdown and silently snapped the selection to
+  // some other gallery — which then quietly received the next batch of uploads.
+  function loadGalleryList(preferredSlug) {
+    var want = preferredSlug || currentSlug || gallerySelect.value || null;
+    // Cache-bust: the response carries no validator, and browsers will happily
+    // serve a heuristically-cached copy from before the new gallery existed.
+    return fetch(WORKER_URL + "/_galleries?t=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        var slugs = (data.galleries || []).slice();
+        if (want && slugs.indexOf(want) === -1) slugs.push(want);
+        slugs.sort();
+
         gallerySelect.innerHTML = "";
-        (data.galleries || []).sort().forEach(function (slug) {
+        slugs.forEach(function (slug) {
           var opt = document.createElement("option");
           opt.value = slug;
           opt.textContent = slug;
           gallerySelect.appendChild(opt);
         });
-        if (data.galleries && data.galleries.length) {
-          selectGallery(gallerySelect.value);
-        }
+
+        if (!slugs.length) return;
+        gallerySelect.value = want && slugs.indexOf(want) !== -1 ? want : slugs[0];
+        // Only reload the grid when the refresh actually moved us to a
+        // different gallery — callers that already loaded `want` shouldn't
+        // pay for a second fetch of the same photos.
+        if (gallerySelect.value !== currentSlug) selectGallery(gallerySelect.value);
+      })
+      .catch(function () {
+        setStatus("Couldn't load the gallery list — check your connection and reload.", true);
       });
   }
 
@@ -344,11 +366,20 @@
     var slug = document.getElementById("newSlug").value.trim()
       .toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
     if (!slug) return;
-    currentSlug = slug;
     document.getElementById("newSlug").value = "";
+    // Show it in the dropdown immediately. It has no images (so the Worker
+    // doesn't know about it yet), but leaving it out meant the slug you just
+    // typed had no visible home — switch galleries once and it was gone.
+    if (!gallerySelect.querySelector('option[value="' + slug + '"]')) {
+      var opt = document.createElement("option");
+      opt.value = slug;
+      opt.textContent = slug;
+      gallerySelect.appendChild(opt);
+    }
+    gallerySelect.value = slug;
+    currentSlug = slug;
     setStatus('Ready — drop photos in to create "' + slug + '"');
     renderGrid([]);
-    // It'll appear in the dropdown once it has at least one image uploaded.
   };
 
   function selectGallery(slug) {
