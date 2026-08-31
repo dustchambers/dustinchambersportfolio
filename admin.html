@@ -218,6 +218,52 @@
     font-weight: 600;
   }
 
+  #embed {
+    margin-top: 1.25rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: rgba(0,0,0,0.15);
+  }
+  #embed.hidden { display: none; }
+  #embed .embed-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+  }
+  #embed .embed-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  #embed .embed-label b { color: var(--text); font-weight: 600; }
+  #embedCode {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--text);
+    resize: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #embedCode:focus { outline: 1px solid var(--accent); }
+  #embed .embed-hint {
+    margin-top: 0.55rem;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  #embed .embed-hint a { color: var(--text-dim); }
+
   #status {
     margin-top: 1rem;
     font-size: 0.85rem;
@@ -277,6 +323,20 @@
 
     <div id="grid"></div>
     <div id="status"></div>
+
+    <div id="embed" class="hidden">
+      <div class="embed-head">
+        <span class="embed-label">Embed code for <b id="embedSlug"></b></span>
+        <button id="copyEmbedBtn" class="secondary">Copy</button>
+      </div>
+      <textarea id="embedCode" rows="2" readonly spellcheck="false"></textarea>
+      <div class="embed-hint">
+        Paste into the SoloFolio page's &ldquo;HTML (inserted above content)&rdquo; field.
+        Always copy it from here rather than retyping it &mdash; a text editor that turns
+        the quotes curly (<code>&ldquo;&rdquo;</code>) silently breaks the gallery id.
+        <a id="previewLink" href="#" target="_blank" rel="noopener">Preview this gallery &rarr;</a>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -384,6 +444,7 @@
 
   function selectGallery(slug) {
     currentSlug = slug;
+    updateEmbedPanel(slug);
     if (!slug) { renderGrid([]); return; }
     setStatus("Loading...");
     fetch(WORKER_URL + "/" + encodeURIComponent(slug))
@@ -397,6 +458,68 @@
       })
       .catch(function () { setStatus("Failed to load gallery", true); });
   }
+
+  // ── Embed code ──
+  // Built here (not hand-typed) on purpose: the snippet's only variable part
+  // is the slug, and the one way it reliably breaks is quote substitution —
+  // Notes/Mail/most editors turn "commercial" into curly quotes, which HTML
+  // does NOT treat as quoting. The value then parses as the literal
+  // “commercial”, curly characters included, and the gallery 404s. Copying
+  // from a textarea preserves the straight quotes exactly.
+  var embedEl = document.getElementById("embed");
+  var embedCodeEl = document.getElementById("embedCode");
+  var embedSlugEl = document.getElementById("embedSlug");
+  var previewLinkEl = document.getElementById("previewLink");
+  var copyEmbedBtn = document.getElementById("copyEmbedBtn");
+
+  function embedSnippetFor(slug) {
+    return '<script src="' + PAGES_BASE + '/embed.js" data-gallery-id="' + slug + '"><\/script>';
+  }
+
+  function updateEmbedPanel(slug) {
+    if (!slug) { embedEl.className = "hidden"; return; }
+    embedEl.className = "";
+    embedSlugEl.textContent = slug;
+    embedCodeEl.value = embedSnippetFor(slug);
+    previewLinkEl.href = PAGES_BASE + "/gallery9.html?id=" + encodeURIComponent(slug);
+    // Grow to fit so the whole snippet is visible — it's long, and a snippet
+    // you can only see half of is a snippet you're tempted to retype.
+    embedCodeEl.style.height = "auto";
+    embedCodeEl.style.height = embedCodeEl.scrollHeight + "px";
+    copyEmbedBtn.textContent = "Copy";
+  }
+
+  function flashCopyBtn(text) {
+    copyEmbedBtn.textContent = text;
+    setTimeout(function () { copyEmbedBtn.textContent = "Copy"; }, 1600);
+  }
+
+  copyEmbedBtn.onclick = function () {
+    var text = embedCodeEl.value;
+    if (!text) return;
+    // Select it either way, so a failed clipboard write still leaves the user
+    // one Cmd-C from the right result instead of stranded.
+    embedCodeEl.focus();
+    embedCodeEl.setSelectionRange(0, text.length);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flashCopyBtn("Copied!"); },
+        function () { flashCopyBtn("Press \u2318C"); }
+      );
+      return;
+    }
+    try {
+      flashCopyBtn(document.execCommand("copy") ? "Copied!" : "Press \u2318C");
+    } catch (e) {
+      flashCopyBtn("Press \u2318C");
+    }
+  };
+
+  // Clicking the box selects the whole snippet — partial selections are the
+  // other way a broken half-snippet gets pasted.
+  embedCodeEl.onclick = function () {
+    embedCodeEl.setSelectionRange(0, embedCodeEl.value.length);
+  };
 
   // ── Grid ──
   var gridEl = document.getElementById("grid");

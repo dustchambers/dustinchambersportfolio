@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-30 (2)
+
+- Added a **copyable embed snippet** to `admin.html`. The panel sits under the photo grid, tracks whatever gallery is selected, and shows the exact one-line `<script>` tag for it with a Copy button and a "Preview this gallery" link.
+  - Motivated by a real failure: the hand-typed snippet for `commercial` had **curly quotes** around the id (`data-gallery-id=“commercial”`). HTML doesn't treat those as quoting, so the value parses as the literal `“commercial”` — curly characters included — and the gallery 404s. Verified that parse in a browser rather than assuming it. Generating the snippet and copying it removes the whole class of problem.
+  - Copy falls back gracefully: if the clipboard write is refused, it still selects the entire snippet and the button says "Press ⌘C". Clicking the box also selects the whole thing, so you can't paste half a tag.
+  - `PAGES_BASE` was declared but unused since it was added — it's now what builds the snippet and preview URL.
+- Confirmed `commercial` itself was never broken: it renders 12 photos at `gallery9.html?id=commercial`. The `galleries/commercial.js` 404 in the console is expected and harmless — no gallery has a static config file; `gallery9.js` falls back to fetching from the Worker.
+- Verified over a real HTTP origin (a local static server), not a `file://` snapshot — the first attempt at verification was invalid because the preview pane serves local files as `data:` URLs, which don't execute inline scripts. Confirmed: panel shows/hides with selection, snippet matches the selected gallery, quotes are straight, switching galleries rewrites the snippet and resets the button, preview link resolves.
+
 ## 2026-08-30
 
 - **Fixed: newly created galleries vanishing from `admin.html`'s dropdown** (reported as "I created `commercial` and it disappeared"). Root cause is a race, not data loss — `commercial` was never gone from KV, and the Worker returns it today. `GET /_galleries` is built from `GALLERY_KV.list({prefix:"images:"})`, and **KV `list()` is eventually consistent**: the key written by the first upload can be absent from list results for up to ~a minute. `admin.html` called `loadGalleryList()` immediately after the last upload finished, got a list that didn't include the brand-new slug, rebuilt the `<select>` from scratch, and — because it always re-selected `gallerySelect.value` (the first option) — silently snapped the selection to a *different* gallery. Which also meant the next batch of dragged-in photos would have quietly uploaded into the wrong gallery.
