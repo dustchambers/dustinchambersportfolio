@@ -353,7 +353,6 @@
   var secretInput = document.getElementById("secretInput");
 
   var savedSecret = sessionStorage.getItem("dcp_admin_secret");
-  if (savedSecret) tryUnlock(savedSecret);
 
   document.getElementById("unlockBtn").onclick = function () {
     tryUnlock(secretInput.value.trim());
@@ -835,6 +834,9 @@
     el.textContent = msg;
     el.className = isError ? "error" : "";
   }
+  // Restore the session only after the dropdown, grid, embed panel, and
+  // event handlers have initialized. tryUnlock() immediately loads galleries.
+  if (savedSecret) tryUnlock(savedSecret);
 })();
 </script>
 </body>
