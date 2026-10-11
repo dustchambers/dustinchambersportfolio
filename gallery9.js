@@ -1528,7 +1528,6 @@
     });
 
     clearSelection();
-    getGalleryItems().forEach(updatePhotoControls);
     refreshOrderNumbers();
     refreshSlots();
     autoSave(); // persist the restored state
@@ -2472,43 +2471,6 @@
     var el = document.getElementById("selection-count");
     if (el) el.textContent = selectedItems.length ? selectedItems.length + " selected" : "";
   }
-  function updatePhotoControls(item) {
-    if (isSpacer(item)) return;
-    var adjust = item.querySelector(".photo-adjust");
-    if (adjust) adjust.setAttribute("aria-pressed", String(!!item._cropMode));
-    var img = item.querySelector("img"), toggle = item.querySelector(".photo-fit");
-    if (toggle) {
-      toggle.textContent = img.style.objectFit === "contain" ? "Fit" : "Crop";
-      toggle.setAttribute("aria-pressed", img.style.objectFit === "contain" ? "true" : "false");
-    }
-  }
-  function addPhotoControls(item) {
-    if (item.querySelector(".photo-controls")) return;
-    var img = item.querySelector("img");
-    var controls = document.createElement("div"); controls.className = "photo-controls";
-    function button(label, title, action, cls) {
-      var btn = document.createElement("button"); btn.textContent = label; btn.title = title;
-      if (cls) btn.className = cls;
-      btn.addEventListener("mousedown", function (e) { e.stopPropagation(); });
-      btn.addEventListener("click", function (e) { e.stopPropagation(); action(btn); });
-      controls.appendChild(btn);
-    }
-    button("Fit", "Toggle full photo / crop to box", function () {
-      pushUndo(); img.style.objectFit = img.style.objectFit === "contain" ? "cover" : "contain";
-      item._cropMode = false; updatePhotoControls(item); autoSave();
-    }, "photo-fit");
-    button("Adjust", "Drag photo to adjust crop; Shift always pushes", function (btn) {
-      item._cropMode = !item._cropMode;
-      btn.setAttribute("aria-pressed", String(item._cropMode));
-      if (item._cropMode && img.style.objectFit !== "cover") {
-        pushUndo(); img.style.objectFit = "cover"; updatePhotoControls(item); autoSave();
-      }
-    }, "photo-adjust");
-    button("Reset crop", "Center photo without changing the box", function () {
-      pushUndo(); img.style.objectPosition = "50% 50%"; item._cropState = null; autoSave();
-    });
-    item.appendChild(controls); updatePhotoControls(item);
-  }
   function clearMovePreview() {
     getGalleryItems().forEach(function (item) { item.classList.remove("g9-pushed", "g9-aligned"); });
     var el = document.getElementById("move-preview"); if (el) el.textContent = "";
@@ -2544,7 +2506,6 @@
     if (!isSpacer(item)) {
       addItemResizeHandles(item);
       addImageDeleteButton(item);
-      addPhotoControls(item);
     } else {
       addSpacerHandles(item);
     }

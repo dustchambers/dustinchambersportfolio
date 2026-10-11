@@ -19,14 +19,8 @@ const image=(id,c,r,cols=6,rows=4,fit='contain')=>({id,src:'https://test.local/'
  const f=fixture([image('a',1,1),image('b',7,1),image('c',1,5)]),{w,item,key,mouse}=f;
  const initial=JSON.stringify(w.test.captureSnapshot());
  assert.match(w.document.querySelector('.save-indicator').textContent,/Site layout loaded/);
- item('a').querySelector('.photo-fit').click(); assert.equal(item('a').querySelector('img').style.objectFit,'cover');
- assert.match(w.document.querySelector('.save-indicator').textContent,/Draft saved in this browser/);
- key('z',{metaKey:true});assert.equal(item('a').querySelector('img').style.objectFit,'contain');
- key('z',{metaKey:true,shiftKey:true});assert.equal(item('a').querySelector('img').style.objectFit,'cover');
- item('a').querySelector('img').style.objectPosition='12% 80%';
- const before=item('a').style.gridRow;
- Array.from(item('a').querySelectorAll('button')).find(b=>b.textContent==='Reset crop').click();
- assert.equal(item('a').querySelector('img').style.objectPosition,'50% 50%');assert.equal(item('a').style.gridRow,before);
+ assert.equal(w.document.querySelectorAll('.photo-controls').length,0);
+ assert.equal(item('a').querySelector('img').style.objectFit,'contain');
  mouse(item('a'),'mousedown',40,40);mouse(w,'mouseup',40,40);
  assert.match(w.document.querySelector('#selection-count').textContent,/1 selected/);
  key('ArrowRight');assert.equal(item('a').style.gridColumn,'2 / span 6');
@@ -49,7 +43,7 @@ const image=(id,c,r,cols=6,rows=4,fit='contain')=>({id,src:'https://test.local/'
  mouse(w,'mouseup',160,160,false);
  assert.equal(item('a').querySelector('img').style.objectPosition,'');
  w.test.toggleEditor(); assert.equal(w.document.querySelectorAll('.photo-controls').length,0);
- w.test.toggleEditor();assert.equal(w.document.querySelectorAll('.photo-controls').length,3);
+ w.test.toggleEditor();assert.equal(w.document.querySelectorAll('.photo-controls').length,0);
  assert.equal(item('a').querySelectorAll('.item-resize-handle').length,8);
  f.close();
 }
@@ -89,4 +83,4 @@ const image=(id,c,r,cols=6,rows=4,fit='contain')=>({id,src:'https://test.local/'
  assert(f.w.document.querySelector('#lightbox-img').src.includes('OH6A9237.jpg'));
  f.close();
 }
-console.log('Passed: fit/reset, persistence, undo/redo, selection/nudge, Shift drag/resize and release, portrait upload, editor reentry, unchanged 32-photo view, visual lightbox order after DOM reorder.');
+console.log('Passed: crop controls removed, framing persistence, undo/redo, selection/nudge, Shift drag/resize and release, portrait upload, editor reentry, unchanged 32-photo view, visual lightbox order after DOM reorder.');
