@@ -423,8 +423,8 @@
       var computed = getComputedStyle(img);
       var pos = computed.objectPosition.split(" ");
       item._cropState = {
-        objX: parseFloat(pos[0]) || 50,
-        objY: parseFloat(pos[1]) || 50
+        objX: isNaN(parseFloat(pos[0])) ? 50 : parseFloat(pos[0]),
+        objY: isNaN(parseFloat(pos[1])) ? 50 : parseFloat(pos[1])
       };
     }
     return item._cropState;
@@ -1373,6 +1373,7 @@
         }
 
         item._cropMode = false;
+        item._cropState = null;
         item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
         if (entry.crop) {
           item.querySelector("img").style.objectPosition = entry.crop;
@@ -1516,6 +1517,7 @@
         }
       }
       item._cropMode = false;
+      item._cropState = null;
       item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
       if (entry.crop) {
         item.querySelector("img").style.objectPosition = entry.crop;
@@ -2737,7 +2739,9 @@
 
       var img = item.querySelector("img");
       var objPos = img.style.objectPosition;
-      var posAttr = objPos && objPos !== "50% 50%" ? ' style="object-position: ' + objPos + '"' : "";
+      var imgStyles = (img.style.objectFit === "contain" ? "object-fit:contain;" : "") +
+        (objPos && objPos !== "50% 50%" ? "object-position:" + objPos + ";" : "");
+      var posAttr = imgStyles ? ' style="' + imgStyles + '"' : "";
       var spans = getItemSpans(item);
       var divStyle = "";
       var cls;
