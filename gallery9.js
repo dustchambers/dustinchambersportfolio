@@ -267,7 +267,7 @@
     img.alt = entry.alt || "";
     img.loading = "lazy";
     img.dataset.imageId = entry.id;
-    img.style.objectFit = entry.fit === "contain" ? "contain" : "cover";
+    img.style.objectFit = (entry.fit === "contain" || (entry.adjustments && entry.adjustments.fit === "contain")) ? "contain" : "cover";
 
     if (entry.crop && entry.crop !== "50% 50%") {
       img.style.objectPosition = entry.crop;
@@ -1294,6 +1294,7 @@
       var entry = {
         id:       img.dataset.imageId || "",
         fit:      img.style.objectFit === "contain" ? "contain" : null,
+        adjustments: img.style.objectFit === "contain" ? { fit: "contain" } : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -1434,6 +1435,7 @@
       var entry = {
         id:       img.dataset.imageId || "",
         fit:      img.style.objectFit === "contain" ? "contain" : null,
+        adjustments: img.style.objectFit === "contain" ? { fit: "contain" } : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -2721,6 +2723,7 @@
       var entry = {
         id:       img.dataset.imageId || "",
         fit:      img.style.objectFit === "contain" ? "contain" : null,
+        adjustments: img.style.objectFit === "contain" ? { fit: "contain" } : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -2804,6 +2807,7 @@
       var entry = {
         id:       img.dataset.imageId || "",
         fit:      img.style.objectFit === "contain" ? "contain" : null,
+        adjustments: img.style.objectFit === "contain" ? { fit: "contain" } : null,
         src:      img.src,
         alt:      img.alt || "",
         colStart: colP.start || null,
