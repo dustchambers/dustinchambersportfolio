@@ -267,6 +267,7 @@
     img.alt = entry.alt || "";
     img.loading = "lazy";
     img.dataset.imageId = entry.id;
+    img.style.objectFit = entry.fit === "contain" ? "contain" : "cover";
 
     if (entry.crop && entry.crop !== "50% 50%") {
       img.style.objectPosition = entry.crop;
@@ -1292,6 +1293,7 @@
       var rowP = parseGridStyle(item.style.gridRow);
       var entry = {
         id:       img.dataset.imageId || "",
+        fit:      img.style.objectFit === "contain" ? "contain" : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -1375,6 +1377,7 @@
           }
         }
 
+        item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
         if (entry.crop) {
           item.querySelector("img").style.objectPosition = entry.crop;
         }
@@ -1430,6 +1433,7 @@
       var rowP = parseGridStyle(item.style.gridRow);
       var entry = {
         id:       img.dataset.imageId || "",
+        fit:      img.style.objectFit === "contain" ? "contain" : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -1514,6 +1518,7 @@
           item.style.gridRow    = entry.rowStart + " / span " + spans.rows;
         }
       }
+      item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
       if (entry.crop) {
         item.querySelector("img").style.objectPosition = entry.crop;
       } else {
@@ -2715,6 +2720,7 @@
       var rowP = parseGridStyle(item.style.gridRow);
       var entry = {
         id:       img.dataset.imageId || "",
+        fit:      img.style.objectFit === "contain" ? "contain" : null,
         crop:     (crop && crop !== "50% 50%") ? crop : null,
         colStart: colP.start || null,
         rowStart: rowP.start || null
@@ -2797,6 +2803,7 @@
       var rowP = parseGridStyle(item.style.gridRow);
       var entry = {
         id:       img.dataset.imageId || "",
+        fit:      img.style.objectFit === "contain" ? "contain" : null,
         src:      img.src,
         alt:      img.alt || "",
         colStart: colP.start || null,

@@ -443,6 +443,7 @@ function mergeLayout(baseImages, layout) {
       src:         baseImg.src,
       alt:         baseImg.alt,
       size:        entry.size        !== undefined ? entry.size        : baseImg.size,
+      fit:         entry.fit === "contain" ? "contain" : undefined,
       crop:        entry.crop        != null ? entry.crop        : undefined,
       colStart:    entry.colStart    != null ? entry.colStart    : undefined,
       rowStart:    entry.rowStart    != null ? entry.rowStart    : undefined,
