@@ -3,3 +3,7 @@
 .wrangler/
 worker/.wrangler/
 .claude/
+
+tools/test-runtime/
+tools/editor-preview.html
+tools/improve-editor.py

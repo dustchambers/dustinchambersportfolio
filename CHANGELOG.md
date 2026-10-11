@@ -102,3 +102,12 @@
 - GitHub Pages' legacy build pipeline started hanging/erroring on pushes (likely repo size — ~250MB of images) with no useful error detail. Switched Pages to Actions-based deployment (`build_type: workflow`) and added `.github/workflows/pages.yml` using `actions/deploy-pages`. Confirmed working and much faster (~1 min vs. hanging indefinitely).
 - Diagnosed slow gallery load times: original images were full-resolution export JPEGs (2–4MB each, ~2000×3000px, ~224MB total across soma + portraits). Recompressed all 71 images in place to a 2000px max dimension at JPEG quality 80 (soma 98MB→38MB, portraits 126MB→17MB, ~75% total reduction), with no visible quality loss at gallery/lightbox display sizes. User will export future uploads pre-sized rather than relying on server-side compression.
 - One push (`f5c6f71`, the image recompression commit) didn't auto-trigger the Actions deploy — a one-off GitHub-side miss, not a config problem (confirmed by the previous push triggering normally). Deployed manually via `gh workflow run`; noted `gh workflow run "Deploy Pages"` as the fallback if it recurs.
+
+## 2026-10-11 — Gallery editor comfort and predictable pushing
+
+- Photo Fit/Crop toggle, explicit Adjust crop mode, and centered Reset crop without resizing the tile. New uploads default to full photo; new vertical uploads get portrait boxes. Saved custom layouts keep their size and framing.
+- Shift from the start of a drag consistently pushes rows downward. Shift-resizing pushes collisions down inside the fixed 18-column grid instead of extending the grid sideways. Releasing Shift restores the previewed changes before drop.
+- Blue drop/alignment feedback, amber outlines on photos being pushed, grid position and push-count preview, stronger selection outline/count, and arrow-key nudging. Typing in text fields keeps its normal keyboard behavior.
+- Explicit browser-draft versus site-save status; toolbar height follows wrapped text. Fixed redo stack handling and editor reentry duplicating resize handles.
+- Checks: tools/editor-checks.cjs covers fit/crop/reset, undo/redo, selection/nudge, Shift drag/resize/release, portrait uploads, editor reentry, and unchanged 32-photo view geometry. Dependencies: npm install --prefix tools/test-runtime --no-save jsdom.
+- Lightbox reading order follows grid position rather than editor stacking order; a regression reproduces moving the runner to the final DOM node and verifies it still opens as photo 8/32, followed by the red-dress photo.

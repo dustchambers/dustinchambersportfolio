@@ -259,7 +259,7 @@
     // Numeric codes like 1/2/3 from the old sync.js format are ignored here
     // and fall through to the portrait-sensing provisional default below.
     var sizeClass = SIZE_CLASS_MAP[entry.size];
-    var hasSavedSize = !!sizeClass;
+    var hasSavedSize = !!sizeClass || !!(entry.cols && entry.rows);
     if (sizeClass) div.classList.add(sizeClass);
 
     var img = document.createElement("img");
@@ -294,7 +294,11 @@
       // Only correct if it's still the provisional 6x4
       if (img.naturalHeight > img.naturalWidth * 1.1) {
         applySizeClass(div, "4x6"); // portrait correction
-        if (editorMode) { updateBadge(div); pinAllItems(); refreshSlots(); }
+        if (editorMode) {
+          if (div._newPhoto) { div.style.gridColumn = ""; div.style.gridRow = ""; }
+          updateBadge(div); pinAllItems(); refreshSlots();
+          if (div._newPhoto) autoSave();
+        }
       }
       // Landscape stays 6x4, square images stay 6x4 (better than 1×1)
     });
@@ -1172,35 +1176,24 @@
       }
     }
 
+    colStart = Math.min(18, colStart);
+    newCols = Math.min(newCols, 19 - colStart);
     resizingItem.style.gridColumn = colStart + " / span " + newCols;
     resizingItem.style.gridRow    = rowStart + " / span " + newRows;
 
-    // ── Shift+resize push ──
-    // Bottom/br/bl edge expanding downward: push bystanders below the new bottom edge.
-    var bottomEdge = (resizeCorner === "b" || resizeCorner === "br" || resizeCorner === "bl");
-    var rightEdge  = (resizeCorner === "r" || resizeCorner === "br" || resizeCorner === "tr");
-
+    // Push down within the fixed 18-column grid, including horizontal expansion.
     if (e.shiftKey && resizeMode === "image") {
-      if (bottomEdge && newRows > resizeStartRows) {
-        // Use the ORIGINAL bottom edge as the push threshold, not the new bottom.
-        // Items that start at or below the original bottom should always be pushed,
-        // even when they start above the new (expanded) bottom.
-        var originalBottom = resizeStartRow + resizeStartRows; // first row below original item
-        applyPushDown(originalBottom, newRows - resizeStartRows);
-      } else if (isPushDown) {
-        restorePushDown();
-      }
-      if (rightEdge && newCols > resizeStartCols) {
-        // First col to the right of the expanded item
-        var newRight = colStart + newCols;
-        applyPushRight(newRight, newCols - resizeStartCols);
-      } else if (isPushRight) {
-        restorePushRight();
-      }
-    } else {
-      if (isPushDown)  restorePushDown();
-      if (isPushRight) restorePushRight();
-    }
+      var collision = pushDownOriginals.filter(function (entry) {
+        var cp = parseGridStyle(entry.item.style.gridColumn);
+        return cp.start < colStart + newCols && cp.start + cp.span > colStart &&
+          entry.origRow < rowStart + newRows && entry.origRow + entry.span > rowStart;
+      });
+      if (collision.length) {
+        var threshold = Math.min.apply(null, collision.map(function (entry) { return entry.origRow; }));
+        applyPushDown(threshold, rowStart + newRows - threshold);
+      } else restorePushDown();
+    } else if (isPushDown) restorePushDown();
+    updateMovePreview();
 
     // Update gap slots live so adjacent empty space shrinks/grows as you drag
     refreshSlots();
@@ -1221,6 +1214,7 @@
     isPushDown = false;  pushDownOriginals = [];  lastPushDownRow = -1;  lastPushDownShift = -1;
     isPushRight = false; pushRightOriginals = []; lastPushRightCol = -1;
 
+    clearMovePreview();
     collapseFullWidthGaps();
     autoSave();
     refreshSlots();
@@ -1378,6 +1372,7 @@
           }
         }
 
+        item._cropMode = false;
         item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
         if (entry.crop) {
           item.querySelector("img").style.objectPosition = entry.crop;
@@ -1520,6 +1515,7 @@
           item.style.gridRow    = entry.rowStart + " / span " + spans.rows;
         }
       }
+      item._cropMode = false;
       item.querySelector("img").style.objectFit = entry.fit === "contain" ? "contain" : "cover";
       if (entry.crop) {
         item.querySelector("img").style.objectPosition = entry.crop;
@@ -1529,9 +1525,11 @@
       gallery.appendChild(item);
     });
 
+    clearSelection();
+    getGalleryItems().forEach(updatePhotoControls);
     refreshOrderNumbers();
     refreshSlots();
-    saveState(); // persist the restored state
+    autoSave(); // persist the restored state
   }
 
   function flashUndoIndicator(msg) {
@@ -1544,22 +1542,20 @@
     indicator.style.color = "#8ab4f8"; // blue tint to distinguish from normal save
     setTimeout(function () {
       indicator.style.color = "";
-      indicator.textContent = "\u2713 saved";
+      indicator.textContent = saveStatus;
       indicator.style.opacity = "0.4";
     }, 1200);
   }
 
+  var saveStatus = "Site layout loaded";
+  function setSaveStatus(text) {
+    saveStatus = text;
+    var indicator = document.querySelector(".save-indicator");
+    if (indicator) { indicator.textContent = text; indicator.style.opacity = "1"; }
+  }
   function autoSave() {
-    saveState();
-    var banner = document.querySelector(".edit-banner");
-    if (!banner) return;
-    var indicator = banner.querySelector(".save-indicator");
-    if (!indicator) return;
-    indicator.textContent = "\u2713 saved";
-    indicator.style.opacity = "1";
-    setTimeout(function () {
-      indicator.style.opacity = "0.4";
-    }, 1000);
+    try { saveState(); setSaveStatus("Draft saved in this browser"); }
+    catch (err) { setSaveStatus("Draft could not be saved"); console.error(err); }
   }
 
   // ── Lightbox ──
@@ -1610,13 +1606,25 @@
     openLightbox(currentIndex);
   }
 
-  function bindClicks() {
-    visibleItems = getGalleryItems().filter(function (item) {
-      return !isSpacer(item);
+  // Editor stacking order is independent from the visual reading sequence.
+  function visualPhotoItems() {
+    return getGalleryItems().filter(function (item) { return !isSpacer(item); }).sort(function (a, b) {
+      var ar = parseGridStyle(a.style.gridRow), br = parseGridStyle(b.style.gridRow);
+      var ac = parseGridStyle(a.style.gridColumn), bc = parseGridStyle(b.style.gridColumn);
+      if (ar.start !== null && br.start !== null && ac.start !== null && bc.start !== null) {
+        return ar.start - br.start || ac.start - bc.start;
+      }
+      return a.offsetTop - b.offsetTop || a.offsetLeft - b.offsetLeft;
     });
-    visibleItems.forEach(function (item, i) {
+  }
+  function bindClicks() {
+    visibleItems = visualPhotoItems();
+    visibleItems.forEach(function (item) {
       item.onclick = function () {
-        if (!editorMode) openLightbox(i);
+        if (!editorMode) {
+          visibleItems = visualPhotoItems();
+          openLightbox(visibleItems.indexOf(item));
+        }
       };
     });
   }
@@ -1874,6 +1882,7 @@
   function clearSelection() {
     selectedItems.forEach(function (el) { el.classList.remove("g9-selected"); });
     selectedItems = [];
+    updateSelectionCount();
   }
 
   // ── Reorder Drag ──
@@ -2144,6 +2153,7 @@
 
   // Restore all bystander items to their original row positions (pre-push-down).
   function restorePushDown() {
+    clearMovePreview();
     pushDownOriginals.forEach(function (entry) {
       entry.item.style.gridRow = entry.origRow + " / span " + entry.span;
     });
@@ -2190,6 +2200,14 @@
   // skip calls when only shift changes.
   var lastPushDownShift = -1;
   function applyPushDown(targetRow, shift) {
+    var crossing = pushDownOriginals.filter(function (entry) {
+      return entry.origRow < targetRow && entry.origRow + entry.span > targetRow;
+    });
+    if (crossing.length) {
+      var first = Math.min.apply(null, crossing.map(function (entry) { return entry.origRow; }));
+      shift += targetRow - first;
+      targetRow = first;
+    }
     if (lastPushDownRow === targetRow && lastPushDownShift === shift && isPushDown) return;
     lastPushDownRow = targetRow;
     lastPushDownShift = shift;
@@ -2259,9 +2277,9 @@
       var groupRowSpan = groupBottom - startRow + 1;
       applyPushDown(startRow, groupRowSpan);
     } else if (isPushDown) {
-      // Shift key released mid-drag — restore bystanders
       restorePushDown();
     }
+    updateMovePreview();
   }
 
   // Close any full-width (col 1–18) uninterrupted horizontal gaps by shifting
@@ -2391,6 +2409,7 @@
     lastPushDownRow = -1;
     lastPushDownShift = -1;
 
+    clearMovePreview();
     // Automatically close any full-width horizontal gaps that remain after
     // the drop (e.g. gaps left behind by Shift+drag push-down).
     collapseFullWidthGaps();
@@ -2443,9 +2462,75 @@
   }
 
   function endCrop(item) {
-    pushUndo(); // capture pre-crop state for undo
     item.style.cursor = "grab";
     autoSave();
+  }
+
+  function updateSelectionCount() {
+    var el = document.getElementById("selection-count");
+    if (el) el.textContent = selectedItems.length ? selectedItems.length + " selected" : "";
+  }
+  function updatePhotoControls(item) {
+    if (isSpacer(item)) return;
+    var adjust = item.querySelector(".photo-adjust");
+    if (adjust) adjust.setAttribute("aria-pressed", String(!!item._cropMode));
+    var img = item.querySelector("img"), toggle = item.querySelector(".photo-fit");
+    if (toggle) {
+      toggle.textContent = img.style.objectFit === "contain" ? "Fit" : "Crop";
+      toggle.setAttribute("aria-pressed", img.style.objectFit === "contain" ? "true" : "false");
+    }
+  }
+  function addPhotoControls(item) {
+    if (item.querySelector(".photo-controls")) return;
+    var img = item.querySelector("img");
+    var controls = document.createElement("div"); controls.className = "photo-controls";
+    function button(label, title, action, cls) {
+      var btn = document.createElement("button"); btn.textContent = label; btn.title = title;
+      if (cls) btn.className = cls;
+      btn.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+      btn.addEventListener("click", function (e) { e.stopPropagation(); action(btn); });
+      controls.appendChild(btn);
+    }
+    button("Fit", "Toggle full photo / crop to box", function () {
+      pushUndo(); img.style.objectFit = img.style.objectFit === "contain" ? "cover" : "contain";
+      item._cropMode = false; updatePhotoControls(item); autoSave();
+    }, "photo-fit");
+    button("Adjust", "Drag photo to adjust crop; Shift always pushes", function (btn) {
+      item._cropMode = !item._cropMode;
+      btn.setAttribute("aria-pressed", String(item._cropMode));
+      if (item._cropMode && img.style.objectFit !== "cover") {
+        pushUndo(); img.style.objectFit = "cover"; updatePhotoControls(item); autoSave();
+      }
+    }, "photo-adjust");
+    button("Reset crop", "Center photo without changing the box", function () {
+      pushUndo(); img.style.objectPosition = "50% 50%"; item._cropState = null; autoSave();
+    });
+    item.appendChild(controls); updatePhotoControls(item);
+  }
+  function clearMovePreview() {
+    getGalleryItems().forEach(function (item) { item.classList.remove("g9-pushed", "g9-aligned"); });
+    var el = document.getElementById("move-preview"); if (el) el.textContent = "";
+  }
+  function updateMovePreview() {
+    clearMovePreview();
+    var moved = 0;
+    pushDownOriginals.forEach(function (entry) {
+      if (parseGridStyle(entry.item.style.gridRow).start !== entry.origRow) {
+        entry.item.classList.add("g9-pushed"); moved++;
+      }
+    });
+    var target = dropIndicator || resizingItem;
+    if (!target) return;
+    var cp = parseGridStyle(target.style.gridColumn), rp = parseGridStyle(target.style.gridRow);
+    getGalleryItems().forEach(function (item) {
+      if (item === activeItem || item === resizingItem) return;
+      var c = parseGridStyle(item.style.gridColumn), r = parseGridStyle(item.style.gridRow);
+      if (c.start === cp.start || c.start + c.span === cp.start + cp.span ||
+          r.start === rp.start || r.start + r.span === rp.start + rp.span) item.classList.add("g9-aligned");
+    });
+    var el = document.getElementById("move-preview");
+    if (el) el.textContent = "Column " + cp.start + ", row " + rp.start + " · " +
+      (moved ? "Pushing " + moved + " down" : "Grid aligned");
   }
 
   // ── Editor Item Setup ──
@@ -2457,6 +2542,7 @@
     if (!isSpacer(item)) {
       addItemResizeHandles(item);
       addImageDeleteButton(item);
+      addPhotoControls(item);
     } else {
       addSpacerHandles(item);
     }
@@ -2580,7 +2666,9 @@
   }
 
   function addUploadedImageToGallery(entry) {
+    entry.fit = "contain";
     var div = createImageItem(entry);
+    div._newPhoto = true;
     lockAnimation(div);
     getGallery().appendChild(div);
     setupEditorItem(div);
@@ -2739,6 +2827,7 @@
     });
 
     var btn = document.getElementById("editor-publish");
+    var publishingSnapshot = JSON.stringify(captureSnapshot());
 
     fetch(WORKER_URL + "/" + encodeURIComponent(config.id), {
       method: "PUT",
@@ -2754,6 +2843,7 @@
       })
       .then(function () {
         if (btn) {
+          setSaveStatus(JSON.stringify(captureSnapshot()) === publishingSnapshot ? "Saved to site" : "Site saved; newer draft in this browser");
           btn.textContent = "Published!";
           setTimeout(function () { btn.textContent = "Publish"; }, 2000);
         }
@@ -2761,6 +2851,7 @@
       .catch(function (err) {
         console.error("Publish failed:", err);
         if (btn) {
+          setSaveStatus("Site save failed — draft kept in this browser");
           btn.textContent = "Failed!";
           setTimeout(function () { btn.textContent = "Publish"; }, 2000);
         }
@@ -2852,8 +2943,8 @@
       editorOverlay.innerHTML =
         '<div class="edit-banner">' +
           '<div class="edit-banner-info">' +
-            "EDITOR \u2014 Drag: reorder \u00b7 Shift+Drag: push rows down \u00b7 Shift+Click: multi-select \u00b7 \u2318Z: undo" +
-            '<span class="save-indicator">\u2713 saved</span>' +
+            "EDITOR \u2014 Drag: reorder \u00b7 Shift+Drag: push rows down \u00b7 Shift+Click: multi-select · Arrows: nudge \u00b7 \u2318Z: undo" +
+            '<span class="save-indicator">Site layout loaded</span><span id="selection-count" aria-live="polite"></span><span id="move-preview" aria-live="polite"></span>' +
           '</div>' +
           '<div class="edit-banner-actions">' +
             '<button id="editor-done">Done</button>' +
@@ -2877,6 +2968,13 @@
         "</div>";
       document.body.appendChild(editorOverlay);
       document.body.classList.add("edit-mode");
+      if (window.ResizeObserver) {
+        window._editorBannerObserver = new ResizeObserver(function () {
+          document.body.style.paddingTop = editorOverlay.offsetHeight + "px";
+        });
+        window._editorBannerObserver.observe(editorOverlay);
+      }
+      setSaveStatus(localStorage.getItem(STORAGE_KEY) ? "Draft saved in this browser" : "Site layout loaded");
 
       document
         .getElementById("editor-done")
@@ -2980,7 +3078,8 @@
         var dist = Math.sqrt(dx * dx + dy * dy);
 
         if (!isDragging && !isCropping && dist > DRAG_THRESHOLD) {
-          if (e.shiftKey) {
+          if (activeItem._cropMode && !e.shiftKey && !isSpacer(activeItem)) {
+            pushUndo();
             isCropping = true;
             activeItem.style.cursor = "crosshair";
             var crop = getCropState(activeItem);
@@ -3023,11 +3122,13 @@
               tgt.classList.remove("g9-selected");
             }
           } else {
-            // Plain click on unselected item — clear selection
             if (selectedItems.indexOf(activeItem) === -1) {
               clearSelection();
+              selectedItems.push(activeItem);
+              activeItem.classList.add("g9-selected");
             }
           }
+          updateSelectionCount();
           // Spacer body click: no auto-activate — text mode only via T button cycle.
           // Clean up any push-down/push-right state that didn't lead to a drop
           if (isPushDown)  restorePushDown();
@@ -3055,6 +3156,10 @@
       window.addEventListener("mousedown", window._editorBgClick);
     } else {
       // Exit editor
+      if (window._editorBannerObserver) { window._editorBannerObserver.disconnect(); window._editorBannerObserver = null; }
+      document.body.style.paddingTop = "";
+      clearSelection();
+      clearMovePreview();
       if (editorOverlay) editorOverlay.remove();
       document.body.classList.remove("edit-mode");
 
@@ -3071,6 +3176,9 @@
         var orderNum = item.querySelector(".order-number");
         if (orderNum) orderNum.remove();
         removeSpacerHandles(item);
+        removeItemResizeHandles(item);
+        item.querySelectorAll(".photo-controls").forEach(function (el) { el.remove(); });
+        item._cropMode = false;
         item.style.cursor = "pointer";
         item.style.opacity = "";
         if (item._onMouseDown) {
@@ -3124,6 +3232,23 @@
 
   function bindKeyboard() {
     document.addEventListener("keydown", function (e) {
+      if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (editorMode && !isDragging && !resizingItem && selectedItems.length &&
+          /^Arrow(Left|Right|Up|Down)$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        var dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+        var dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+        var positions = selectedItems.map(function (item) {
+          return { item: item, c: parseGridStyle(item.style.gridColumn), r: parseGridStyle(item.style.gridRow) };
+        });
+        if (positions.some(function (p) { return p.c.start + dx < 1 || p.c.start + dx + p.c.span > 19 || p.r.start + dy < 1; })) return;
+        pushUndo();
+        positions.forEach(function (p) {
+          p.item.style.gridColumn = (p.c.start + dx) + " / span " + p.c.span;
+          p.item.style.gridRow = (p.r.start + dy) + " / span " + p.r.span;
+        });
+        refreshSlots(); autoSave(); return;
+      }
       // Shift+L toggles editor (only when ?edit is in URL and lightbox is not open)
       if (e.key === "L" && e.shiftKey && hasEditParam() && (!lightbox || !lightbox.classList.contains("active"))) {
         toggleEditor();
@@ -3152,9 +3277,9 @@
       if (editorMode && e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
         e.preventDefault();
         if (redoStack.length > 0) {
-          // Push current state to undo stack before redoing
-          pushUndo();
           var redoSnapshot = redoStack.pop();
+          undoStack.push(captureSnapshot());
+          if (undoStack.length > MAX_UNDO) undoStack.shift();
           applyUndoSnapshot(redoSnapshot);
           flashUndoIndicator("\u21bb redo");
         }
